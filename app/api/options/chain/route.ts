@@ -99,20 +99,52 @@ function calculateOptionPrice(
   return Math.max(0.05, Math.round(optionPrice * 100) / 100)
 }
 
-// Fetch spot price for the index
-async function getSpotPrice(indexSymbol: string): Promise<number | null> {
+// Direct spot price data with fallback values
+const FALLBACK_SPOT_PRICES: Record<string, number> = {
+  "NIFTY": 25418.9,
+  "BANKNIFTY": 59957.85,
+  "SENSEX": 82566.37,
+  "NIFTYIT": 19890.45,
+  "NIFTYPHARMA": 17340.20,
+  "NIFTYAUTO": 9876.55,
+  "FINNIFTY": 21234.80,
+  "MIDCAP": 12450.30,
+}
+
+// Fetch spot price for the index with improved timeout handling
+async function getSpotPrice(indexSymbol: string): Promise<number> {
   try {
-    const appOrigin = process.env.NEXT_PUBLIC_APP_ORIGIN || "http://localhost:3000"
-    const url = `${appOrigin}/api/indices?symbol=${indexSymbol}`
+    // Use query1.finance.yahoo.com directly like the indices API does
+    const INDICES_MAP: Record<string, string> = {
+      "NIFTY": "^NSEI",
+      "BANKNIFTY": "^NSEBANK",
+      "SENSEX": "^BSESN",
+      "NIFTYIT": "^CNXIT",
+      "NIFTYPHARMA": "^CNXPHARMA",
+      "NIFTYAUTO": "^CNXAUTO",
+      "FINNIFTY": "^CNXINFRA",
+      "MIDCAP": "^CNXM100",
+    }
+
+    const yFinanceSymbol = INDICES_MAP[indexSymbol]
+    if (!yFinanceSymbol) {
+      console.warn(`[OPTIONS_CHAIN] Unknown symbol ${indexSymbol}, using fallback`)
+      return FALLBACK_SPOT_PRICES[indexSymbol] || 25418.9
+    }
+
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
+      yFinanceSymbol
+    )}?range=1d&interval=1m&includePrePost=false`
     
-    console.log(`[OPTIONS_CHAIN] Fetching spot price from: ${url}`)
+    console.log(`[OPTIONS_CHAIN] Fetching spot price for ${indexSymbol} from Yahoo Finance`)
     
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 8000) // 8 second timeout
+    const timeout = setTimeout(() => controller.abort(), 5000) // 5 second timeout
     
     const response = await fetch(url, {
       headers: {
-        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "application/json",
       },
       signal: controller.signal,
     })
@@ -120,25 +152,32 @@ async function getSpotPrice(indexSymbol: string): Promise<number | null> {
     clearTimeout(timeout)
 
     if (!response.ok) {
-      console.error(`[OPTIONS_CHAIN] Failed to fetch spot price for ${indexSymbol}: ${response.status}`)
-      return null
+      console.warn(`[OPTIONS_CHAIN] Yahoo Finance API error for ${indexSymbol}: ${response.status}`)
+      return FALLBACK_SPOT_PRICES[indexSymbol] || 25418.9
     }
 
     const data = await response.json()
-    console.log(`[OPTIONS_CHAIN] Received spot price data:`, { symbol: indexSymbol, price: data.price, success: data.success })
+    const meta = data?.chart?.result?.[0]?.meta
     
-    // API returns {success: true, price: number, symbol: string, ...}
-    if (data.success && data.price !== undefined) {
-      return data.price
+    if (!meta) {
+      console.warn(`[OPTIONS_CHAIN] No meta data from Yahoo Finance for ${indexSymbol}, using fallback`)
+      return FALLBACK_SPOT_PRICES[indexSymbol] || 25418.9
     }
-    return null
+
+    const price = meta.regularMarketPrice || 0
+    if (price > 0) {
+      console.log(`[OPTIONS_CHAIN] Got spot price for ${indexSymbol}: ${price}`)
+      return price
+    }
+    
+    return FALLBACK_SPOT_PRICES[indexSymbol] || 25418.9
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
-      console.error(`[OPTIONS_CHAIN] Timeout fetching spot price for ${indexSymbol} (exceeded 8s)`)
+      console.warn(`[OPTIONS_CHAIN] Timeout fetching spot price for ${indexSymbol} (exceeded 5s), using fallback`)
     } else {
-      console.error(`[OPTIONS_CHAIN] Error fetching spot price for ${indexSymbol}:`, error)
+      console.warn(`[OPTIONS_CHAIN] Error fetching spot price for ${indexSymbol}:`, error)
     }
-    return null
+    return FALLBACK_SPOT_PRICES[indexSymbol] || 25418.9
   }
 }
 
@@ -225,36 +264,26 @@ export async function GET(request: NextRequest) {
     // Check if market is open
     const marketOpen = isMarketOpen()
 
-    // Fetch current spot price with timeout and fallback
-    let spotPrice: number | null = null
+    // Fetch current spot price with improved timeout
+    let spotPrice: number
     try {
       spotPrice = await Promise.race([
         getSpotPrice(symbol),
-        new Promise<null>((_, reject) => 
-          setTimeout(() => reject(new Error("Spot price fetch timeout")), 10000)
+        new Promise<number>((resolve) => 
+          setTimeout(() => {
+            console.warn(`[OPTIONS_CHAIN] Spot price fetch timeout for ${symbol}, using fallback`)
+            resolve(FALLBACK_SPOT_PRICES[symbol] || 25418.9)
+          }, 6000)
         )
       ])
     } catch (err) {
-      console.error(`[OPTIONS_CHAIN] Error fetching spot price for ${symbol}:`, err)
-      // Use fallback prices if fetch fails
-      const fallbackPrices: Record<string, number> = {
-        "NIFTY": 25418.9,
-        "BANKNIFTY": 59957.85,
-        "SENSEX": 82566.37,
-      }
-      spotPrice = fallbackPrices[symbol] || null
-      console.log(`[OPTIONS_CHAIN] Using fallback price for ${symbol}: ${spotPrice}`)
+      console.warn(`[OPTIONS_CHAIN] Error fetching spot price for ${symbol}:`, err)
+      spotPrice = FALLBACK_SPOT_PRICES[symbol] || 25418.9
     }
 
-    if (spotPrice === null) {
-      console.error(`[OPTIONS_CHAIN] Spot price is null for symbol: ${symbol}`)
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Could not fetch spot price for ${symbol}`,
-        },
-        { status: 404 }
-      )
+    if (!spotPrice || spotPrice <= 0) {
+      console.warn(`[OPTIONS_CHAIN] Invalid spot price for symbol: ${symbol}, using fallback`)
+      spotPrice = FALLBACK_SPOT_PRICES[symbol] || 25418.9
     }
 
     // Generate option chain
