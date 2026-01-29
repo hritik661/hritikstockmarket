@@ -170,24 +170,18 @@ export async function GET(request: NextRequest) {
 
     if (type === "near-high") {
       response = {
-        timestamp: stats.timestamp,
-        title: "52-Week Highs - Near Peak Performance",
-        description: "Stocks trading near their 52-week highs",
-        stocks: stats.topNearHigh,
+        ...stats,
+        stocks: stats.topNearHigh || [],
       }
     } else if (type === "near-low") {
       response = {
-        timestamp: stats.timestamp,
-        title: "52-Week Lows - Potential Opportunities",
-        description: "Stocks trading near their 52-week lows",
-        stocks: stats.topNearLow,
+        ...stats,
+        stocks: stats.topNearLow || [],
       }
     } else if (type === "volatile") {
       response = {
-        timestamp: stats.timestamp,
-        title: "Most Volatile - Highest 52-Week Range",
-        description: "Stocks with the largest price range over 52 weeks",
-        stocks: stats.mostVolatile,
+        ...stats,
+        stocks: stats.mostVolatile || [],
       }
     }
 

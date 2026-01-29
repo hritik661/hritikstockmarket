@@ -72,10 +72,10 @@ export function FiftyTwoWeekView({
   const getDisplayData = (): FiftyTwoWeekData[] => {
     if (!data) return []
 
-    let displayData = data.stocks
-    if (selectedView === "near-high") displayData = data.topNearHigh
-    else if (selectedView === "near-low") displayData = data.topNearLow
-    else if (selectedView === "volatile") displayData = data.mostVolatile
+    let displayData: FiftyTwoWeekData[] = data.stocks || []
+    if (selectedView === "near-high") displayData = data.topNearHigh || []
+    else if (selectedView === "near-low") displayData = data.topNearLow || []
+    else if (selectedView === "volatile") displayData = data.mostVolatile || []
 
     const displayLimit = showMore ? limit : 4
     return displayData.slice(0, displayLimit)
