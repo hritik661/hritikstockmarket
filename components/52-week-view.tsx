@@ -278,6 +278,19 @@ export function FiftyTwoWeekView({
               </Button>
             </div>
           )}
+
+          {!loading && !error && displayData.length > 0 && showMore && (
+            <div className="p-3 md:p-4 border-t text-center">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowMore(false)}
+                className="text-xs md:text-sm w-full md:w-auto"
+              >
+                Show Less
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
