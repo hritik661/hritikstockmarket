@@ -397,7 +397,7 @@ export function TradePanel({ stock, preselectedOption, initialTab }: TradePanelP
 
             <Button
               className="w-full gap-2 bg-gradient-to-r from-primary to-accent border-none h-11"
-              onClick={() => {
+              onClick={async () => {
                 try {
                   const strike = selectedStrike ?? Math.round(stock.regularMarketPrice / 50) * 50
                   const lotSize = 50 // fixed lot size used in UI
@@ -438,7 +438,20 @@ export function TradePanel({ stock, preselectedOption, initialTab }: TradePanelP
                   }
 
                   localStorage.setItem(storageKey, JSON.stringify(holdings))
-                  updateBalance(-totalCost)
+                  // Use API-backed deduction for consistency
+                  try {
+                    const res = await deductBalance(totalCost, "BUY", stock.symbol, 1, premium)
+                    if (!res.success) {
+                      // rollback local change
+                      const rawRollback = localStorage.getItem(storageKey) || "[]"
+                      const holdingsRollback: any[] = JSON.parse(rawRollback).filter((h) => h.symbol !== optSymbol)
+                      localStorage.setItem(storageKey, JSON.stringify(holdingsRollback))
+                      toast({ title: "Transaction Failed", description: res.error, variant: "destructive" })
+                      return
+                    }
+                  } catch (err) {
+                    console.error("option order balance error", err)
+                  }
 
                   toast({
                     title: "Option Order Placed",

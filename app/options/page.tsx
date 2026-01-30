@@ -22,6 +22,7 @@ import {
   getLastTradingPrice,
   getEffectivePrice 
 } from "@/lib/options-calculator"
+import { useBalance } from "@/hooks/use-balance"
 import { TrendingUp, TrendingDown, Activity, Volume2, Zap, ShoppingCart, CircleDollarSign, RefreshCw } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { isMarketOpen } from "@/lib/market-utils"
@@ -118,31 +119,8 @@ export default function OptionsPage() {
     return () => clearInterval(interval)
   }, [])
 
-  // Helpers for storing last-known option/index prices so P/L is deterministic when market is closed
-  const getLastPrices = () => {
-    try {
-      if (!user) return {} as Record<string, number>
-      const stored = localStorage.getItem(`last_prices_${user.email}`)
-      if (!stored) return {}
-      return JSON.parse(stored) as Record<string, number>
-    } catch (err) {
-      console.error("Error reading last prices:", err)
-      return {}
-    }
-  }
-
-  const setLastPrice = (key: string, price: number) => {
-    try {
-      if (!user) return
-      const map = getLastPrices()
-      if (typeof map === "object" && map !== null) {
-        map[key] = price
-        localStorage.setItem(`last_prices_${user.email}`, JSON.stringify(map))
-      }
-    } catch (err) {
-      console.error("Error setting last price:", err)
-    }
-  }
+  // Balance helpers (use API-backed add/deduct functions)
+  const { deductBalance, addBalance } = useBalance()
 
   // Load positions from localStorage
   useEffect(() => {
@@ -154,19 +132,14 @@ export default function OptionsPage() {
           if (Array.isArray(parsed)) {
             setPositions(parsed)
             
-            // Initialize prices for existing positions if not already set
-            const map = getLastPrices()
-            let hasUpdates = false
+            // Initialize last trading prices for existing positions (use options-calculator storage)
             parsed.forEach((pos: Position) => {
               const key = `${pos.index}-${pos.strike}-${pos.type}`
-              if (typeof map[key] !== 'number' || isNaN(map[key])) {
-                map[key] = pos.price
-                hasUpdates = true
+              const existing = getLastTradingPrice(user.email, key)
+              if (typeof existing !== 'number') {
+                try { storeLastTradingPrice(user.email, key, pos.price) } catch {}
               }
             })
-            if (hasUpdates) {
-              localStorage.setItem(`last_prices_${user.email}`, JSON.stringify(map))
-            }
           }
         }
       }
@@ -262,7 +235,7 @@ export default function OptionsPage() {
     }
   }
 
-  const handleTrade = () => {
+  const handleTrade = async () => {
     try {
       if (!user || !selectedOption) return
 
@@ -294,11 +267,26 @@ export default function OptionsPage() {
       setPositions(updatedPositions)
       localStorage.setItem(`options_positions_${user.email}`, JSON.stringify(updatedPositions))
 
-      // Update balance
+      // Update balance via API-backed helpers
       if (tradeAction === "BUY") {
-        updateBalance(-totalValue)
+        const res = await deductBalance(totalValue, "BUY", selectedIndex.symbol, quantity, selectedOption.price)
+        if (!res.success) {
+          // rollback position if balance update failed
+          const rolled = positions.filter((p) => p.id !== newPosition.id)
+          setPositions(rolled)
+          localStorage.setItem(`options_positions_${user.email}`, JSON.stringify(rolled))
+          toast({ title: "Transaction Failed", description: res.error, variant: "destructive" })
+          return
+        }
       } else {
-        updateBalance(totalValue * 0.95) // Selling gives slightly less due to charges
+        const res = await addBalance(totalValue, "SELL", selectedIndex.symbol, quantity, selectedOption.price)
+        if (!res.success) {
+          const rolled = positions.filter((p) => p.id !== newPosition.id)
+          setPositions(rolled)
+          localStorage.setItem(`options_positions_${user.email}`, JSON.stringify(rolled))
+          toast({ title: "Transaction Failed", description: res.error, variant: "destructive" })
+          return
+        }
       }
 
       toast({
@@ -311,7 +299,7 @@ export default function OptionsPage() {
       // persist last-known price for this position and index so P/L is deterministic
       try {
         const strikeKey = `${newPosition.index}-${newPosition.strike}-${newPosition.type}`
-        setLastPrice(strikeKey, newPosition.price)
+        storeLastTradingPrice(user.email, strikeKey, newPosition.price)
       } catch {}
     } catch (err) {
       console.error("Error executing trade:", err)
@@ -319,49 +307,49 @@ export default function OptionsPage() {
     }
   }
 
-  const closePosition = (position: Position) => {
+  const closePosition = async (position: Position) => {
     try {
       if (!user) return
 
-      // Check if market is open
+      // Determine effective price for closing: prefer live strike price, otherwise last-trading price, otherwise entry price
       const marketStatus = isMarketOpen()
-
-      // Get current price from strikes for this specific position's index
-      let currentPrice = position.price // Default to entry price
-      
+      let livePrice: number | undefined = undefined
       if (marketStatus.isOpen) {
-        // Market is OPEN - fetch live prices
         const positionStrikes = strikesByIndex[position.index] || []
         let strike = positionStrikes.find((s) => s.strike === position.strike)
-        
-        // If not found, check the main strikes if it's for the selected index
         if (!strike && position.index === selectedIndex.symbol) {
           strike = strikes.find((s) => s.strike === position.strike)
         }
-        
         if (strike) {
-          currentPrice = position.type === "CE" ? strike.cePrice : strike.pePrice
+          livePrice = position.type === "CE" ? strike.cePrice : strike.pePrice
         }
       }
-      // If market is CLOSED, currentPrice stays as position.price (entry price)
+
+      const key = `${position.index}-${position.strike}-${position.type}`
+      const lastPrice = getLastTradingPrice(user.email, key)
+      const effectivePrice = getEffectivePrice(livePrice, lastPrice, position.price)
 
       // Calculate P&L using proper options calculator
-      const pnl = calculateOptionsPnL(position.price, currentPrice, position.action, position.quantity, position.lotSize)
+      const pnl = calculateOptionsPnL(position.price, effectivePrice, position.action, position.quantity, position.lotSize)
 
-      // Credit the closing value + P&L to the user
-      const closingValue = currentPrice * position.quantity * position.lotSize
-      updateBalance(closingValue)
+      // Credit the full sell value to the user (sell price * qty * lotSize) via API
+      const sellValue = effectivePrice * position.quantity * position.lotSize
+      const res = await addBalance(sellValue, "SELL", position.index, position.quantity, effectivePrice)
+      if (!res.success) {
+        toast({ title: "Transaction Failed", description: res.error, variant: "destructive" })
+        return
+      }
 
       const updatedPositions = positions.filter((p) => p.id !== position.id)
       setPositions(updatedPositions)
       localStorage.setItem(`options_positions_${user.email}`, JSON.stringify(updatedPositions))
 
       // Store closing price
-      storeLastTradingPrice(user.email, `${position.index}-${position.strike}-${position.type}`, currentPrice)
+      try { storeLastTradingPrice(user.email, key, effectivePrice) } catch {}
 
       toast({
         title: "Position Closed",
-        description: `Closed ${position.index} ${position.strike} ${position.type} with ${pnl >= 0 ? "profit" : "loss"} of ₹${Number(Math.abs(pnl).toFixed(2)).toLocaleString("en-IN")}`,
+        description: `Closed ${position.index} ${position.strike} ${position.type} with ${pnl >= 0 ? "profit" : "loss"} of \u20b9${Number(Math.abs(pnl).toFixed(2)).toLocaleString("en-IN")}`,
         variant: pnl >= 0 ? "default" : "destructive",
       })
     } catch (err) {
@@ -479,7 +467,7 @@ export default function OptionsPage() {
                   size="sm"
                   variant="destructive"
                   className="text-xs md:text-sm"
-                  onClick={() => {
+                  onClick={async () => {
                     try {
                       if (!user) return
 
@@ -509,7 +497,6 @@ export default function OptionsPage() {
                             currentPrice = pos.type === "CE" ? strike.cePrice : strike.pePrice
                           }
                         }
-                        // If market is CLOSED, currentPrice stays as pos.price (entry price)
 
                         // Calculate P&L using proper options calculator
                         const pnl = calculateOptionsPnL(pos.price, currentPrice, pos.action, pos.quantity, pos.lotSize)
@@ -522,8 +509,12 @@ export default function OptionsPage() {
                         }
                       })
 
-                      // Update balance with total credit from selling all positions
-                      updateBalance(totalCredit)
+                      // Update balance with total credit from selling all positions via API
+                      const r = await addBalance(totalCredit, "SELL", "OPTIONS", positions.length, undefined)
+                      if (!r.success) {
+                        toast({ title: "Transaction Failed", description: r.error, variant: "destructive" })
+                        return
+                      }
 
                       // Clear all positions
                       setPositions([])
@@ -625,19 +616,24 @@ export default function OptionsPage() {
                                 <Button
                                   size="sm"
                                   className="text-xs px-2 h-6"
-                                  onClick={() => {
+                                  onClick={async () => {
                                     try {
                                       if (!user) return
-                                      const lastPrices = getLastPrices()
-                                      const strikeKey = `${pos.index}-${pos.strike}-${pos.type}`
-                                      const currentPrice =
-                                        typeof lastPrices[strikeKey] === "number"
-                                          ? lastPrices[strikeKey]
-                                          : typeof lastPrices[pos.id] === "number"
-                                            ? lastPrices[pos.id]
-                                            : typeof lastPrices[pos.index] === "number"
-                                              ? lastPrices[pos.index]
-                                              : pos.price
+
+                                      // Determine effective current price: prefer live strike, otherwise last saved, otherwise entry
+                                      let livePrice: number | undefined = undefined
+                                      const positionStrikes = strikesByIndex[pos.index] || []
+                                      let strike = positionStrikes.find((s) => s.strike === pos.strike)
+                                      if (!strike && pos.index === selectedIndex.symbol) {
+                                        strike = strikes.find((s) => s.strike === pos.strike)
+                                      }
+                                      if (strike) {
+                                        livePrice = pos.type === "CE" ? strike.cePrice : strike.pePrice
+                                      }
+
+                                      const last = getLastTradingPrice(user.email, `${pos.index}-${pos.strike}-${pos.type}`)
+                                      const currentPrice = getEffectivePrice(livePrice, last, pos.price)
+
                                       const qtyStr = window.prompt("How many lots to buy?", "1")
                                       const qtyBuy = Math.max(0, Number.parseInt(qtyStr || "0") || 0)
                                       if (!qtyBuy) return
@@ -669,10 +665,19 @@ export default function OptionsPage() {
                                       })
                                       setPositions(updated)
                                       localStorage.setItem(`options_positions_${user.email}`, JSON.stringify(updated))
-                                      updateBalance(-totalCost)
+
+                                      // Deduct balance via API
                                       try {
-                                        setLastPrice(`${pos.index}-${pos.strike}-${pos.type}`, currentPrice)
-                                      } catch {}
+                                        const r = await deductBalance(totalCost, "BUY", pos.index, qtyBuy, currentPrice)
+                                        if (!r.success) {
+                                          toast({ title: "Transaction Failed", description: r.error, variant: "destructive" })
+                                          return
+                                        }
+                                      } catch (err) {
+                                        console.error("deduct balance error", err)
+                                      }
+
+                                      try { storeLastTradingPrice(user.email, `${pos.index}-${pos.strike}-${pos.type}`, currentPrice) } catch {}
                                       toast({
                                         title: "Bought",
                                         description: `Bought ${qtyBuy} lot(s) of ${pos.index} ${pos.strike} ${pos.type} @ ${formatCurrency(currentPrice)}`,
@@ -690,19 +695,24 @@ export default function OptionsPage() {
                                   size="sm"
                                   variant="destructive"
                                   className="text-xs px-2 h-6"
-                                  onClick={() => {
+                                  onClick={async () => {
                                     try {
                                       if (!user) return
-                                      const lastPrices = getLastPrices()
-                                      const strikeKey = `${pos.index}-${pos.strike}-${pos.type}`
-                                      const currentPrice =
-                                        typeof lastPrices[strikeKey] === "number"
-                                          ? lastPrices[strikeKey]
-                                          : typeof lastPrices[pos.id] === "number"
-                                            ? lastPrices[pos.id]
-                                            : typeof lastPrices[pos.index] === "number"
-                                              ? lastPrices[pos.index]
-                                              : pos.price
+
+                                      // Determine effective current price: prefer live strike, otherwise last saved, otherwise entry
+                                      let livePrice: number | undefined = undefined
+                                      const positionStrikes = strikesByIndex[pos.index] || []
+                                      let strike = positionStrikes.find((s) => s.strike === pos.strike)
+                                      if (!strike && pos.index === selectedIndex.symbol) {
+                                        strike = strikes.find((s) => s.strike === pos.strike)
+                                      }
+                                      if (strike) {
+                                        livePrice = pos.type === "CE" ? strike.cePrice : strike.pePrice
+                                      }
+
+                                      const last = getLastTradingPrice(user.email, `${pos.index}-${pos.strike}-${pos.type}`)
+                                      const currentPrice = getEffectivePrice(livePrice, last, pos.price)
+
                                       const qtyStr = window.prompt("How many lots to sell/close?", "1")
                                       const qtySell = Math.max(0, Number.parseInt(qtyStr || "0") || 0)
                                       if (!qtySell) return
@@ -720,12 +730,13 @@ export default function OptionsPage() {
                                           ? (currentPrice - pos.price) * qtySell * pos.lotSize
                                           : (pos.price - currentPrice) * qtySell * pos.lotSize
 
-                                      const investedPortion = pos.price * qtySell * pos.lotSize
-                                      // For SELL positions, the effective credit received was 95% of investedPortion
-                                      const effectiveCredit = pos.action === "SELL" ? investedPortion * 0.95 : investedPortion
-                                      const credit = effectiveCredit + pnl
-
-                                      updateBalance(credit)
+                                      // On sell, always credit the full sell value via API
+                                      const sellValue = currentPrice * qtySell * pos.lotSize
+                                      const r = await addBalance(sellValue, "SELL", pos.index, qtySell, currentPrice)
+                                      if (!r.success) {
+                                        toast({ title: "Transaction Failed", description: r.error, variant: "destructive" })
+                                        return
+                                      }
 
                                       const updatedPositions = positions
                                         .map((p) =>
@@ -743,9 +754,7 @@ export default function OptionsPage() {
                                         `options_positions_${user.email}`,
                                         JSON.stringify(updatedPositions),
                                       )
-                                      try {
-                                        setLastPrice(`${pos.index}-${pos.strike}-${pos.type}`, currentPrice)
-                                      } catch {}
+                                      try { storeLastTradingPrice(user.email, `${pos.index}-${pos.strike}-${pos.type}`, currentPrice) } catch {}
                                       toast({
                                         title: "Position Partially/Closed",
                                         description: `Closed ${qtySell} lot(s) of ${pos.index} ${pos.strike} ${pos.type} with ₹${Number(Math.abs(pnl).toFixed(2)).toLocaleString("en-IN")} ${pnl >= 0 ? "profit" : "loss"}`,
@@ -753,7 +762,7 @@ export default function OptionsPage() {
                                       })
                                     } catch (err) {
                                       console.error(err)
-                                      setError("Failed to sell/close part of this position")
+                                      setError("Failed to close position")
                                     }
                                   }}
                                 >
