@@ -1,8 +1,8 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Mail, ArrowRight, Sparkles, AlertCircle, Loader, KeyRound, CheckCircle2 } from "lucide-react"
+import { Mail, ArrowRight, Sparkles, AlertCircle, Loader, KeyRound, CheckCircle2, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,11 +12,51 @@ export function LoginForm({ compact, full }: { compact?: boolean; full?: boolean
   const router = useRouter()
   const { loginWithOTP } = useAuth()
   const [otpEmail, setOtpEmail] = useState("")
-  const [otp, setOtp] = useState("")
+  const [otp, setOtp] = useState(["", "", "", "", "", ""])
   const [otpStep, setOtpStep] = useState<"email" | "verify">("email")
   const [otpLoading, setOtpLoading] = useState(false)
   const [otpError, setOtpError] = useState("")
   const [otpSuccess, setOtpSuccess] = useState("")
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([])
+
+  // Focus first OTP input when step changes
+  useEffect(() => {
+    if (otpStep === "verify" && inputRefs.current[0]) {
+      setTimeout(() => inputRefs.current[0]?.focus(), 100)
+    }
+  }, [otpStep])
+
+  const handleOtpChange = (index: number, value: string) => {
+    if (!/^\d*$/.test(value)) return
+    
+    const newOtp = [...otp]
+    newOtp[index] = value.slice(-1)
+    setOtp(newOtp)
+    
+    // Auto-focus next input
+    if (value && index < 5) {
+      inputRefs.current[index + 1]?.focus()
+    }
+  }
+
+  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === "Backspace" && !otp[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus()
+    }
+  }
+
+  const handleOtpPaste = (e: React.ClipboardEvent) => {
+    e.preventDefault()
+    const pastedData = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6)
+    const newOtp = [...otp]
+    pastedData.split("").forEach((char, i) => {
+      if (i < 6) newOtp[i] = char
+    })
+    setOtp(newOtp)
+    if (pastedData.length === 6) {
+      inputRefs.current[5]?.focus()
+    }
+  }
 
   const handleSendOTP = async (e?: React.FormEvent) => {
     e?.preventDefault()
@@ -40,9 +80,9 @@ export function LoginForm({ compact, full }: { compact?: boolean; full?: boolean
       const data = await response.json()
 
       if (response.ok && data.success) {
-        setOtpSuccess("OTP sent! Check your email (and spam folder)")
+        setOtpSuccess("OTP sent! Check your email inbox")
         setOtpStep("verify")
-        setOtp("")
+        setOtp(["", "", "", "", "", ""])
       } else {
         setOtpError(data.error || "Failed to send OTP")
       }
@@ -59,14 +99,15 @@ export function LoginForm({ compact, full }: { compact?: boolean; full?: boolean
     setOtpSuccess("")
     setOtpLoading(true)
 
-    if (!otp || otp.length !== 6) {
-      setOtpError("Please enter a valid 6-digit OTP")
+    const otpString = otp.join("")
+    if (otpString.length !== 6) {
+      setOtpError("Please enter all 6 digits")
       setOtpLoading(false)
       return
     }
 
     try {
-      const result = await loginWithOTP(otpEmail, otp)
+      const result = await loginWithOTP(otpEmail, otpString)
 
       if (result.success) {
         try {
@@ -86,7 +127,7 @@ export function LoginForm({ compact, full }: { compact?: boolean; full?: boolean
   const handleResetOTP = () => {
     setOtpStep("email")
     setOtpEmail("")
-    setOtp("")
+    setOtp(["", "", "", "", "", ""])
     setOtpError("")
     setOtpSuccess("")
   }
@@ -95,115 +136,144 @@ export function LoginForm({ compact, full }: { compact?: boolean; full?: boolean
     <div className="w-full space-y-6">
       {/* Status Messages */}
       {otpError && (
-        <div className="flex items-center gap-3 p-4 rounded-xl bg-destructive/10 border border-destructive/20 animate-scale-in">
-          <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0" />
-          <p className="text-sm text-destructive">{otpError}</p>
+        <div className="flex items-center gap-3 p-4 rounded-2xl bg-[#ff3333]/10 border border-[#ff3333]/20 animate-scale-in">
+          <div className="h-10 w-10 rounded-xl bg-[#ff3333]/20 flex items-center justify-center flex-shrink-0">
+            <AlertCircle className="h-5 w-5 text-[#ff3333]" />
+          </div>
+          <p className="text-sm text-[#ff3333] font-medium">{otpError}</p>
         </div>
       )}
       
       {otpSuccess && (
-        <div className="flex items-center gap-3 p-4 rounded-xl bg-primary/10 border border-primary/20 animate-scale-in">
-          <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0" />
-          <p className="text-sm text-primary">{otpSuccess}</p>
+        <div className="flex items-center gap-3 p-4 rounded-2xl bg-[#00ff88]/10 border border-[#00ff88]/20 animate-scale-in">
+          <div className="h-10 w-10 rounded-xl bg-[#00ff88]/20 flex items-center justify-center flex-shrink-0">
+            <CheckCircle2 className="h-5 w-5 text-[#00ff88]" />
+          </div>
+          <p className="text-sm text-[#00ff88] font-medium">{otpSuccess}</p>
         </div>
       )}
 
       {otpStep === "email" ? (
-        <form onSubmit={handleSendOTP} className="space-y-5">
-          <div className="space-y-2">
-            <Label htmlFor="otp-email" className="text-sm font-medium">
+        <form onSubmit={handleSendOTP} className="space-y-6">
+          <div className="space-y-3">
+            <Label htmlFor="otp-email" className="text-sm font-semibold flex items-center gap-2">
+              <Mail className="h-4 w-4 text-primary" />
               Email Address
             </Label>
-            <div className="relative">
-              <Mail className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <div className="relative group">
               <Input
                 id="otp-email"
                 type="email"
                 placeholder="your@email.com"
                 value={otpEmail}
                 onChange={(e) => setOtpEmail(e.target.value)}
-                className="pl-12 h-12 md:h-14 text-base bg-secondary/50 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-xl"
+                className="h-14 md:h-16 text-base md:text-lg bg-secondary/50 border-border/50 rounded-2xl pl-5 pr-5 transition-all duration-300 focus:bg-secondary/80"
                 disabled={otpLoading}
                 autoFocus
               />
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-primary/20 to-[#00ff88]/20 opacity-0 group-focus-within:opacity-100 transition-opacity -z-10 blur-xl" />
             </div>
           </div>
 
           <Button 
             type="submit" 
-            className="w-full h-12 md:h-14 text-base font-semibold rounded-xl bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all duration-300 shadow-lg shadow-primary/20"
+            className="w-full h-14 md:h-16 text-base md:text-lg font-bold rounded-2xl btn-primary-glow"
             disabled={otpLoading}
           >
             {otpLoading ? (
               <>
-                <Loader className="h-5 w-5 animate-spin mr-2" />
+                <Loader className="h-5 w-5 animate-spin mr-3" />
                 Sending OTP...
               </>
             ) : (
               <>
-                Send OTP Code
-                <ArrowRight className="h-5 w-5 ml-2" />
+                Send Verification Code
+                <ArrowRight className="h-5 w-5 ml-3" />
               </>
             )}
           </Button>
 
           <p className="text-xs text-center text-muted-foreground">
-            We'll send a 6-digit verification code to your email
+            A 6-digit verification code will be sent to your email
           </p>
         </form>
       ) : (
-        <form onSubmit={handleVerifyOTP} className="space-y-5">
-          {/* OTP Input */}
-          <div className="space-y-2">
-            <Label htmlFor="otp-code" className="text-sm font-medium flex items-center gap-2">
-              <KeyRound className="h-4 w-4" />
-              Enter Verification Code
+        <form onSubmit={handleVerifyOTP} className="space-y-6">
+          {/* OTP Input Boxes */}
+          <div className="space-y-4">
+            <Label className="text-sm font-semibold flex items-center gap-2">
+              <KeyRound className="h-4 w-4 text-primary" />
+              Enter 6-Digit Code
             </Label>
-            <Input
-              id="otp-code"
-              type="text"
-              inputMode="numeric"
-              placeholder="000000"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              maxLength={6}
-              className="text-center text-3xl md:text-4xl tracking-[0.5em] font-mono h-16 md:h-20 bg-secondary/50 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-xl"
-              disabled={otpLoading}
-              autoFocus
-            />
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>Sent to: {otpEmail}</span>
-              <span>Expires in 5 minutes</span>
+            
+            <div className="flex justify-center gap-2 md:gap-3" onPaste={handleOtpPaste}>
+              {otp.map((digit, index) => (
+                <input
+                  key={index}
+                  ref={(el) => { inputRefs.current[index] = el }}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={1}
+                  value={digit}
+                  onChange={(e) => handleOtpChange(index, e.target.value)}
+                  onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                  className="w-12 h-14 md:w-14 md:h-16 text-center text-2xl md:text-3xl font-bold font-mono bg-secondary/50 border border-border/50 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/30 transition-all duration-300 focus:bg-secondary/80 focus:scale-105"
+                  disabled={otpLoading}
+                />
+              ))}
+            </div>
+            
+            <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+              <span className="flex items-center gap-2">
+                <Mail className="h-3 w-3" />
+                {otpEmail}
+              </span>
+              <span className="flex items-center gap-1 text-primary">
+                <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                Expires in 5 min
+              </span>
             </div>
           </div>
 
           <Button 
             type="submit" 
-            className="w-full h-12 md:h-14 text-base font-semibold rounded-xl bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all duration-300 shadow-lg shadow-primary/20"
+            className="w-full h-14 md:h-16 text-base md:text-lg font-bold rounded-2xl btn-buy"
             disabled={otpLoading}
           >
             {otpLoading ? (
               <>
-                <Loader className="h-5 w-5 animate-spin mr-2" />
+                <Loader className="h-5 w-5 animate-spin mr-3" />
                 Verifying...
               </>
             ) : (
               <>
-                <Sparkles className="h-5 w-5 mr-2" />
+                <Sparkles className="h-5 w-5 mr-3" />
                 Verify & Sign In
               </>
             )}
           </Button>
 
-          <Button 
-            type="button" 
-            variant="ghost" 
-            className="w-full h-11 rounded-xl hover:bg-secondary/50"
-            onClick={handleResetOTP} 
-            disabled={otpLoading}
-          >
-            Change Email Address
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button 
+              type="button" 
+              variant="ghost" 
+              className="flex-1 h-12 rounded-xl hover:bg-secondary/50 text-muted-foreground hover:text-foreground transition-colors"
+              onClick={handleResetOTP} 
+              disabled={otpLoading}
+            >
+              Change Email
+            </Button>
+            <Button 
+              type="button" 
+              variant="ghost" 
+              className="flex-1 h-12 rounded-xl hover:bg-secondary/50 text-muted-foreground hover:text-foreground transition-colors"
+              onClick={handleSendOTP} 
+              disabled={otpLoading}
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Resend Code
+            </Button>
+          </div>
         </form>
       )}
     </div>

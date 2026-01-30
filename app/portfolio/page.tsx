@@ -182,15 +182,20 @@ export default function PortfolioPage() {
 
   if (authLoading || !user) {
     return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <main className="container mx-auto px-4 py-6">
-          <Skeleton className="h-8 w-48 mb-6" />
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            {[1,2,3,4].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)}
-          </div>
-          <Skeleton className="h-64 rounded-xl" />
-        </main>
+      <div className="min-h-screen bg-background relative overflow-hidden">
+        <div className="fixed inset-0 bg-grid-pattern opacity-20 z-0" />
+        <div className="glow-orb glow-orb-cyan w-[500px] h-[500px] -top-48 -right-48 z-0" />
+        <div className="glow-orb glow-orb-purple w-[400px] h-[400px] bottom-0 -left-32 z-0" />
+        <div className="relative z-10">
+          <Header />
+          <main className="container mx-auto px-4 py-6">
+            <div className="h-10 w-48 bg-secondary/30 rounded-xl shimmer mb-6" />
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              {[1,2,3,4].map(i => <div key={i} className="h-28 glass-card rounded-2xl shimmer" />)}
+            </div>
+            <div className="h-72 glass-card rounded-2xl shimmer" />
+          </main>
+        </div>
       </div>
     )
   }
@@ -209,93 +214,142 @@ export default function PortfolioPage() {
   const totalPnLPercent = totalInvested > 0 ? (totalPnL / totalInvested) * 100 : 0
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
+    <div className="min-h-screen bg-background relative overflow-hidden">
+      {/* Animated Background */}
+      <div className="fixed inset-0 bg-grid-pattern opacity-20 z-0" />
+      
+      {/* Glow Orbs */}
+      <div className={`glow-orb w-[600px] h-[600px] -top-64 -right-64 z-0 ${totalPnL >= 0 ? 'glow-orb-green' : 'glow-orb-purple'}`} />
+      <div className="glow-orb glow-orb-cyan w-[400px] h-[400px] bottom-0 -left-32 z-0" />
+      
+      {/* Floating Particles */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        {[...Array(10)].map((_, i) => (
+          <div
+            key={i}
+            className="particle"
+            style={{
+              left: `${Math.random() * 100}%`,
+              animationDelay: `${Math.random() * 10}s`,
+              animationDuration: `${12 + Math.random() * 8}s`,
+            }}
+          />
+        ))}
+      </div>
 
-      <main className="container mx-auto px-3 py-4 md:px-4 md:py-6">
-        {/* Page Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl md:text-3xl font-bold mb-1">Portfolio</h1>
-          <p className="text-muted-foreground text-sm">Track your investments and P&L</p>
-        </div>
+      <div className="relative z-10">
+        <Header />
+
+        <main className="container mx-auto px-3 py-4 md:px-4 md:py-6">
+          {/* Page Header */}
+          <div className="mb-8 animate-fade-in-down">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="h-2 w-2 rounded-full bg-primary animate-pulse-glow" />
+              <span className="text-sm text-muted-foreground uppercase tracking-wider">Live Portfolio</span>
+            </div>
+            <h1 className="text-3xl md:text-4xl font-bold mb-2">Your Portfolio</h1>
+            <p className="text-muted-foreground">Track your investments, holdings, and P&L in real-time</p>
+          </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-          <Card className="glass-card border-border/30">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Available Balance</p>
-                  <p className="text-xl md:text-2xl font-bold font-mono text-primary">
-                    {formatCurrency(user.balance)}
-                  </p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div className="animate-fade-in-up delay-100">
+            <Card className="glass-card card-shine border-0 overflow-hidden">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Wallet className="h-4 w-4 text-primary" />
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Balance</p>
+                    </div>
+                    <p className="text-2xl md:text-3xl font-bold font-mono text-primary neon-text">
+                      {formatCurrency(user.balance)}
+                    </p>
+                  </div>
+                  <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+                    <Wallet className="h-6 w-6 text-primary" />
+                  </div>
                 </div>
-                <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                  <Wallet className="h-5 w-5 text-primary" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
 
-          <Card className="glass-card border-border/30">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Portfolio Value</p>
-                  <p className="text-xl md:text-2xl font-bold font-mono">
-                    {formatCurrency(totalCurrentValue)}
-                  </p>
+          <div className="animate-fade-in-up delay-200">
+            <Card className="glass-card card-shine border-0 overflow-hidden">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <PieChart className="h-4 w-4 text-[#ffd700]" />
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Portfolio</p>
+                    </div>
+                    <p className="text-2xl md:text-3xl font-bold font-mono">
+                      {formatCurrency(totalCurrentValue)}
+                    </p>
+                  </div>
+                  <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-[#ffd700]/20 to-[#ffd700]/5 flex items-center justify-center">
+                    <PieChart className="h-6 w-6 text-[#ffd700]" />
+                  </div>
                 </div>
-                <div className="h-10 w-10 rounded-xl bg-accent/10 flex items-center justify-center">
-                  <PieChart className="h-5 w-5 text-accent" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
 
-          <Card className="glass-card border-border/30">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Total Invested</p>
-                  <p className="text-xl md:text-2xl font-bold font-mono">
-                    {formatCurrency(totalInvested)}
-                  </p>
+          <div className="animate-fade-in-up delay-300">
+            <Card className="glass-card card-shine border-0 overflow-hidden">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Invested</p>
+                    </div>
+                    <p className="text-2xl md:text-3xl font-bold font-mono">
+                      {formatCurrency(totalInvested)}
+                    </p>
+                  </div>
+                  <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-secondary to-secondary/50 flex items-center justify-center">
+                    <BarChart3 className="h-6 w-6 text-muted-foreground" />
+                  </div>
                 </div>
-                <div className="h-10 w-10 rounded-xl bg-secondary flex items-center justify-center">
-                  <BarChart3 className="h-5 w-5 text-muted-foreground" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
 
-          <Card className={`glass-card border-border/30 ${totalPnL >= 0 ? 'border-l-4 border-l-primary' : 'border-l-4 border-l-destructive'}`}>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Total P&L</p>
-                  <p className={`text-xl md:text-2xl font-bold font-mono ${totalPnL >= 0 ? "text-primary" : "text-destructive"}`}>
-                    {totalPnL >= 0 ? "+" : ""}{formatCurrency(totalPnL)}
-                  </p>
-                  <p className={`text-xs ${totalPnL >= 0 ? "text-primary" : "text-destructive"}`}>
-                    {formatPercentage(totalPnLPercent)}
-                  </p>
+          <div className="animate-fade-in-up delay-400">
+            <Card className={`glass-card card-shine border-0 overflow-hidden relative ${totalPnL >= 0 ? 'border-l-4 border-l-[#00ff88]' : 'border-l-4 border-l-[#ff3333]'}`}>
+              <div className={`absolute inset-0 ${totalPnL >= 0 ? 'bg-gradient-to-r from-[#00ff88]/5 to-transparent' : 'bg-gradient-to-r from-[#ff3333]/5 to-transparent'}`} />
+              <CardContent className="p-5 relative">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      {totalPnL >= 0 ? <TrendingUp className="h-4 w-4 text-[#00ff88]" /> : <TrendingDown className="h-4 w-4 text-[#ff3333]" />}
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Total P&L</p>
+                    </div>
+                    <p className={`text-2xl md:text-3xl font-bold font-mono ${totalPnL >= 0 ? "text-[#00ff88] neon-text-green" : "text-[#ff3333] neon-text-red"}`}>
+                      {totalPnL >= 0 ? "+" : ""}{formatCurrency(totalPnL)}
+                    </p>
+                    <p className={`text-sm font-medium ${totalPnL >= 0 ? "text-[#00ff88]" : "text-[#ff3333]"}`}>
+                      {formatPercentage(totalPnLPercent)}
+                    </p>
+                  </div>
+                  <div className={`h-12 w-12 rounded-2xl flex items-center justify-center ${totalPnL >= 0 ? "bg-gradient-to-br from-[#00ff88]/20 to-[#00ff88]/5 neon-glow-green" : "bg-gradient-to-br from-[#ff3333]/20 to-[#ff3333]/5 neon-glow-red"}`}>
+                    {totalPnL >= 0 ? (
+                      <TrendingUp className="h-6 w-6 text-[#00ff88]" />
+                    ) : (
+                      <TrendingDown className="h-6 w-6 text-[#ff3333]" />
+                    )}
+                  </div>
                 </div>
-                <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${totalPnL >= 0 ? "bg-primary/10" : "bg-destructive/10"}`}>
-                  {totalPnL >= 0 ? (
-                    <TrendingUp className="h-5 w-5 text-primary" />
-                  ) : (
-                    <TrendingDown className="h-5 w-5 text-destructive" />
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         {/* Holdings Section */}
-        <Card className="border-border/30 overflow-hidden mb-6">
-          <CardHeader className="border-b border-border/30 bg-gradient-to-r from-primary/5 to-transparent">
+        <div className="animate-fade-in-up delay-500">
+        <Card className="glass-card border-0 overflow-hidden mb-6">
+          <CardHeader className="border-b border-border/30 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent">
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg font-semibold flex items-center gap-2">
                 <ShoppingCart className="h-5 w-5" />
@@ -529,10 +583,12 @@ export default function PortfolioPage() {
             )}
           </CardContent>
         </Card>
+        </div>
 
         {/* Options Positions */}
-        <Card className="border-border/30 overflow-hidden">
-          <CardHeader className="border-b border-border/30 bg-gradient-to-r from-accent/5 to-transparent">
+        <div className="animate-fade-in-up delay-600">
+        <Card className="glass-card border-0 overflow-hidden">
+          <CardHeader className="border-b border-border/30 bg-gradient-to-r from-purple-500/10 via-purple-500/5 to-transparent">
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg font-semibold flex items-center gap-2">
                 <Activity className="h-5 w-5" />
@@ -709,7 +765,9 @@ export default function PortfolioPage() {
             })()}
           </CardContent>
         </Card>
-      </main>
+        </div>
+        </main>
+      </div>
     </div>
   )
 }
