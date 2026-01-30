@@ -13,7 +13,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Search, TrendingUp, User, LogOut, Wallet, Sparkles, Zap, BarChart3, Briefcase, Info } from "lucide-react"
+import { 
+  Search, 
+  TrendingUp, 
+  User, 
+  LogOut, 
+  Wallet, 
+  Sparkles, 
+  BarChart3, 
+  Briefcase, 
+  Info,
+  Menu,
+  X
+} from "lucide-react"
 import { formatCurrency } from "@/lib/market-utils"
 import { searchStocks } from "@/lib/yahoo-finance"
 import { INDIAN_STOCKS } from "@/lib/stocks-data"
@@ -26,6 +38,7 @@ export function Header({ isLandingPage = false }: { isLandingPage?: boolean }) {
   const [searchResults, setSearchResults] = useState<Array<{ symbol: string; name: string; exchange: string }>>([])
   const [showResults, setShowResults] = useState(false)
   const [searching, setSearching] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const handleSearch = async (query: string) => {
     setSearchQuery(query)
@@ -61,237 +74,192 @@ export function Header({ isLandingPage = false }: { isLandingPage?: boolean }) {
     router.push(`/stock/${encodeURIComponent(symbol)}`)
     setShowResults(false)
     setSearchQuery("")
-  }
-
-  const handleLogout = () => {
-    logout()
+    setMobileMenuOpen(false)
   }
 
   return (
     <header className={cn(
-      "sticky top-0 z-40 w-full glass-morphism border-b border-border/20 transition-all duration-300 shadow-lg",
-      isLandingPage && "border-b border-border/10 shadow-xl",
+      "sticky top-0 z-50 w-full border-b transition-all duration-300",
+      isLandingPage 
+        ? "bg-background/80 backdrop-blur-xl border-border/20" 
+        : "bg-card/80 backdrop-blur-xl border-border/30 shadow-sm"
     )}>
-      <div className="container mx-auto px-3 md:px-3 py-3 md:py-3">
-        <div className="flex items-center gap-2 md:gap-4">
+      <div className="container mx-auto px-3 md:px-4">
+        <div className="flex items-center justify-between h-14 md:h-16">
           {/* Logo */}
-          <div className="flex-shrink-0">
-            <Link href="/">
-              <img src="/banknifty-logo.svg" alt="Stock Market Logo" className="h-6 w-6 md:h-8 md:w-8 object-contain transition-transform hover:scale-110 duration-300" />
-            </Link>
-          </div>
+          <Link href="/" className="flex items-center gap-2 flex-shrink-0">
+            <div className="h-8 w-8 md:h-9 md:w-9 rounded-lg bg-primary/10 flex items-center justify-center">
+              <TrendingUp className="h-4 w-4 md:h-5 md:w-5 text-primary" />
+            </div>
+            <span className="hidden sm:block font-bold text-lg">Hritik Stocks</span>
+          </Link>
 
-          {/* Search Bar - moved right after logo */}
+          {/* Search Bar - Desktop */}
           {!isLandingPage && user && (
-            <div className="flex-1 max-w-lg">
-              <div className="relative flex items-center gap-2 group">
-                <div className="relative flex-1">
-                  <Search className="absolute left-2 top-1/2 h-3 w-3 md:h-4 md:w-4 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                  <Input
-                    placeholder="Search for Any Stock..."
-                    value={searchQuery}
-                    onChange={(e) => handleSearch(e.target.value)}
-                    onFocus={() => searchQuery.length >= 2 && setShowResults(true)}
-                    onBlur={() => setTimeout(() => setShowResults(false), 200)}
-                    className="pl-9 pr-3 h-7 md:h-9 bg-secondary/50 border-border/20 hover:border-primary/30 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all rounded-lg md:rounded-xl text-[10px] md:text-sm font-medium placeholder:text-[11px] md:placeholder:text-sm"
-                  />
-                  {showResults && searchResults.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-2 rounded-xl border border-primary/20 bg-card/95 backdrop-blur-xl shadow-2xl overflow-hidden z-50 animate-fade-in-up">
-                      {searching && (
-                        <div className="px-4 py-2 text-sm text-muted-foreground flex items-center gap-2">
-                          <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                          Searching...
-                        </div>
-                      )}
-                      {!searching && searchResults.map((result) => (
-                        <button
-                          key={`${result.symbol}-${result.exchange}`}
-                          onClick={() => handleSelectStock(result.symbol)}
-                          className="w-full px-4 py-3 text-left hover:bg-secondary/50 transition-colors border-b border-border/10 last:border-b-0"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-semibold text-sm">{result.symbol}</p>
-                              <p className="text-xs text-muted-foreground truncate max-w-xs">{result.name}</p>
-                            </div>
-                            <span className="text-xs text-muted-foreground bg-secondary/50 px-2 py-1 rounded">
-                              {result.exchange}
-                            </span>
+            <div className="hidden md:flex flex-1 max-w-md mx-6">
+              <div className="relative w-full">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search stocks..."
+                  value={searchQuery}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  onFocus={() => searchQuery.length >= 2 && setShowResults(true)}
+                  onBlur={() => setTimeout(() => setShowResults(false), 200)}
+                  className="pl-10 h-10 bg-secondary/50 border-border/30 focus:border-primary/50 rounded-xl"
+                />
+                {showResults && searchResults.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-2 rounded-xl border border-border/50 bg-card shadow-2xl overflow-hidden z-50">
+                    {searching && (
+                      <div className="px-4 py-3 text-sm text-muted-foreground flex items-center gap-2">
+                        <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                        Searching...
+                      </div>
+                    )}
+                    {searchResults.map((result) => (
+                      <button
+                        key={`${result.symbol}-${result.exchange}`}
+                        onClick={() => handleSelectStock(result.symbol)}
+                        className="w-full px-4 py-3 text-left hover:bg-secondary/50 transition-colors border-b border-border/20 last:border-b-0"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-semibold text-sm">{result.symbol.replace('.NS', '').replace('.BO', '')}</p>
+                            <p className="text-xs text-muted-foreground truncate max-w-[200px]">{result.name}</p>
                           </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                
-                {/* Mobile balance - inline with search */}
-                {user && (
-                  <div className="md:hidden flex items-center px-2 py-1.5 rounded-lg bg-primary/10 border border-primary/30">
-                    <Wallet className="h-3 w-3 text-primary" />
-                    <span className="text-[10px] font-semibold font-mono text-primary ml-1">{formatCurrency(user.balance)}</span>
+                          <span className="text-xs text-muted-foreground bg-secondary/50 px-2 py-1 rounded">
+                            {result.exchange}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
                   </div>
                 )}
-              </div>
-              
-              {/* Mobile Navigation Buttons - under search */}
-              <div className="flex items-center gap-0.5 md:hidden justify-center flex-wrap w-full mt-1">
-                <Link href="/portfolio" className="flex-1">
-                  <Button variant="outline" size="sm" className="w-full h-9 text-xs border border-blue-400/50 bg-blue-500/10 text-blue-600 font-semibold hover:bg-blue-500/20">
-                    Portfolio
-                  </Button>
-                </Link>
-                <Link href="/options" className="flex-1">
-                  <Button variant="outline" size="sm" className="w-full h-9 text-xs border border-cyan-400/50 bg-cyan-500/10 text-cyan-600 font-semibold hover:bg-cyan-500/20">
-                    Option
-                  </Button>
-                </Link>
-                <Link href="/about" className="flex-1">
-                  <Button variant="outline" size="sm" className="w-full h-9 text-xs border border-green-400/50 bg-green-500/10 text-green-600 font-semibold hover:bg-green-500/20">
-                    About
-                  </Button>
-                </Link>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex-1 relative overflow-hidden group h-9 text-xs border bg-gradient-to-r from-purple-600/20 via-pink-600/20 to-blue-600/20 border-purple-400/50 hover:border-purple-400 hover:shadow-lg hover:shadow-purple-500/25 transition-all duration-300 rounded-md"
-                  onClick={() => router.push('/predictions')}
-                >
-                  <div className="flex items-center justify-center gap-1">
-                    <Sparkles className="h-3 w-3 text-purple-500 group-hover:animate-spin transition-all duration-300" />
-                    <span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent font-semibold group-hover:from-purple-500 group-hover:to-pink-500 transition-all duration-300">
-                      Predictions
-                    </span>
-                  </div>
-                  <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-md"></div>
-                  <div className="absolute top-1 right-1 h-1 w-1 bg-yellow-400 rounded-full animate-ping opacity-60 group-hover:opacity-100"></div>
-                </Button>
               </div>
             </div>
           )}
 
-          {/* Navigation - moved after search */}
+          {/* Desktop Navigation */}
           {user && !isLandingPage && (
-            <nav className="hidden md:flex items-center gap-1">
-              <Link href="/options" className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium hover:bg-secondary/50 transition-colors group">
-                <BarChart3 className="h-4 w-4 text-cyan-500 group-hover:text-cyan-400 transition-colors" />
-                Options
+            <nav className="hidden lg:flex items-center gap-1">
+              <Link href="/options">
+                <Button variant="ghost" size="sm" className="gap-2 text-sm">
+                  <BarChart3 className="h-4 w-4 text-cyan-400" />
+                  Options
+                </Button>
               </Link>
-              <Link
-                href="/predictions"
-                className="premium-prediction-button premium-magnetic-hover group relative px-2 py-1.5 md:px-3 md:py-2 rounded-md md:rounded-lg text-xs md:text-xs font-bold transition-all duration-500 ease-out
-                         premium-aurora-effect premium-pulse-glow
-                         text-white shadow-lg md:shadow-xl hover:shadow-purple-500/50
-                         hover:scale-105 hover:-translate-y-0.5
-                         border border-purple-500/30 hover:border-purple-400/50
-                         overflow-hidden before:absolute before:inset-0
-                         before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent
-                         before:translate-x-[-100%] hover:before:translate-x-[100%]
-                         before:transition-transform before:duration-700 before:ease-out
-                         after:absolute after:inset-0 after:rounded-md md:after:rounded-lg
-                         after:bg-gradient-to-r after:from-purple-400/0 after:via-purple-400/20 after:to-purple-400/0
-                         after:opacity-0 hover:after:opacity-100 after:transition-opacity after:duration-300
-                         animate-pulse hover:animate-none"
-              >
-                <span className="relative z-10 flex items-center gap-1">
-                  <Sparkles className="h-3 w-3 animate-spin group-hover:animate-ping transition-all duration-300 drop-shadow-lg" />
-                  <span className="bg-gradient-to-r from-yellow-200 via-yellow-100 to-white bg-clip-text text-transparent group-hover:from-yellow-100 group-hover:via-yellow-50 group-hover:to-white font-bold drop-shadow-sm">
+              <Link href="/predictions">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="gap-2 text-sm relative overflow-hidden group"
+                >
+                  <Sparkles className="h-4 w-4 text-purple-400" />
+                  <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent font-medium">
                     Predictions
                   </span>
-                  <div className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 md:h-2 md:w-2 bg-yellow-400 rounded-full animate-ping opacity-75 group-hover:animate-pulse"></div>
-                  <div className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 md:h-2 md:w-2 bg-yellow-300 rounded-full animate-pulse opacity-50 group-hover:opacity-100"></div>
-                  <div className="absolute -top-0.5 -right-0.5 h-1 w-1 md:h-1.5 md:w-1.5 bg-white rounded-full animate-pulse opacity-30 group-hover:opacity-80"></div>
-                </span>
-                <div className="absolute inset-0 rounded-md md:rounded-lg bg-gradient-to-r from-purple-600/20 via-pink-600/20 to-blue-600/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-lg"></div>
-                <div className="premium-shimmer-effect absolute inset-0 rounded-md md:rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                <div className="absolute inset-0 rounded-md md:rounded-lg bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 animate-pulse"></div>
+                </Button>
               </Link>
-              <Link href="/portfolio" className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium hover:bg-secondary/50 transition-colors group">
-                <Briefcase className="h-4 w-4 text-blue-500 group-hover:text-blue-400 transition-colors" />
-                Portfolio
+              <Link href="/portfolio">
+                <Button variant="ghost" size="sm" className="gap-2 text-sm">
+                  <Briefcase className="h-4 w-4 text-blue-400" />
+                  Portfolio
+                </Button>
               </Link>
-              <Link href="/about" className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium hover:bg-secondary/50 transition-colors group">
-                <Info className="h-4 w-4 text-green-500 group-hover:text-green-400 transition-colors" />
-                About
+              <Link href="/about">
+                <Button variant="ghost" size="sm" className="gap-2 text-sm">
+                  <Info className="h-4 w-4 text-green-400" />
+                  About
+                </Button>
               </Link>
-              
-              {/* Wallet Section - Laptop View Only */}
-              {user && (
-                <div className="hidden lg:flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/10 border border-primary/30">
+
+              {/* Balance Display */}
+              <div className="ml-2 px-4 py-2 rounded-xl bg-primary/10 border border-primary/20">
+                <div className="flex items-center gap-2">
                   <Wallet className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-semibold font-mono text-primary">{formatCurrency(user.balance)}</span>
+                  <span className="text-sm font-semibold font-mono text-primary">
+                    {formatCurrency(user.balance)}
+                  </span>
                 </div>
-              )}
+              </div>
             </nav>
           )}
 
-          {/* User Menu on Right */}
-          {user ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 md:h-10 md:w-10 bg-secondary/50 -ml-2">
-                  <User className="h-4 w-4 md:h-5 md:w-5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56 rounded-xl">
-                <div className="px-3 py-2">
-                  <p className="text-sm font-semibold">{user.name}</p>
-                  <p className="text-xs text-muted-foreground">{user.email}</p>
-                  <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border">
-                    <Wallet className="h-3 w-3 text-primary" />
-                    <span className="text-xs font-semibold font-mono">{formatCurrency(user.balance)}</span>
-                  </div>
+          {/* User Menu / Login Buttons */}
+          <div className="flex items-center gap-2">
+            {user ? (
+              <>
+                {/* Mobile Balance */}
+                <div className="lg:hidden flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-primary/10 border border-primary/20">
+                  <Wallet className="h-3.5 w-3.5 text-primary" />
+                  <span className="text-xs font-semibold font-mono text-primary">
+                    {formatCurrency(user.balance)}
+                  </span>
                 </div>
-                <DropdownMenuSeparator />
-                {user.email === "admin@hrtik.com" && (
-                  <DropdownMenuItem asChild className="cursor-pointer text-primary">
-                    <Link href="/admin">Admin Dashboard</Link>
-                  </DropdownMenuItem>
-                )}                <DropdownMenuItem asChild className="cursor-pointer">
-                  <Link href="/">Dashboard</Link>
-                </DropdownMenuItem>                <DropdownMenuItem
-                  onClick={() => {
-                    try {
-                      if (!user) return
-                      if (!confirm('Reset your balance to ₹1,000,000?')) return
-                      const delta = 1000000 - (user.balance || 0)
-                      if (delta !== 0) updateBalance(delta)
-                      alert('Your balance has been reset to ₹1,000,000')
-                    } catch (e) { console.error(e) }
-                  }}
-                  className="cursor-pointer"
-                >
-                  <Wallet className="mr-2 h-4 w-4" />
-                  Reset Balance
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild className="cursor-pointer relative overflow-hidden group md:hidden">
-                  <Link href="/predictions" className="flex items-center gap-2 p-2">
-                    <Sparkles className="h-3 w-3 text-purple-500 group-hover:animate-spin transition-all duration-300" />
-                    <span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent font-semibold group-hover:from-purple-500 group-hover:to-pink-500 transition-all duration-300 text-sm">
-                      Predictions
-                    </span>
-                    <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-md"></div>
-                    <div className="absolute top-1 right-1 h-1.5 w-1.5 bg-yellow-400 rounded-full animate-ping opacity-60 group-hover:opacity-100"></div>
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild className="cursor-pointer">
-                  <Link href="/about">About</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleLogout} className="text-destructive cursor-pointer">
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Logout
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : null}
 
-          {/* Login Buttons or Mobile Menu */}
-          <div className="flex items-center gap-3 ml-auto">
-            {!user ? (
+                {/* Mobile Menu Toggle */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="lg:hidden h-9 w-9"
+                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                >
+                  {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                </Button>
+
+                {/* User Dropdown */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 bg-secondary/50">
+                      <User className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56 rounded-xl">
+                    <div className="px-3 py-2">
+                      <p className="font-semibold text-sm">{user.name}</p>
+                      <p className="text-xs text-muted-foreground">{user.email}</p>
+                      <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border">
+                        <Wallet className="h-3 w-3 text-primary" />
+                        <span className="text-xs font-semibold font-mono">{formatCurrency(user.balance)}</span>
+                      </div>
+                    </div>
+                    <DropdownMenuSeparator />
+                    {user.email === "admin@hrtik.com" && (
+                      <DropdownMenuItem asChild className="cursor-pointer text-primary">
+                        <Link href="/admin">Admin Dashboard</Link>
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem asChild className="cursor-pointer">
+                      <Link href="/">Dashboard</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild className="cursor-pointer">
+                      <Link href="/portfolio">Portfolio</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        if (!user) return
+                        if (!confirm('Reset your balance to 10,00,000?')) return
+                        const delta = 1000000 - (user.balance || 0)
+                        if (delta !== 0) updateBalance(delta)
+                        alert('Balance reset to 10,00,000')
+                      }}
+                      className="cursor-pointer"
+                    >
+                      <Wallet className="mr-2 h-4 w-4" />
+                      Reset Balance
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={logout} className="text-destructive cursor-pointer">
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Logout
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            ) : (
               <div className="flex items-center gap-2">
                 <Button
                   variant="ghost"
-                  className="rounded-xl hidden md:inline-flex"
+                  className="hidden md:inline-flex rounded-xl"
                   onClick={() => { try { window.dispatchEvent(new CustomEvent('open-login')) } catch(e){} }}
                 >
                   Login
@@ -304,9 +272,71 @@ export function Header({ isLandingPage = false }: { isLandingPage?: boolean }) {
                   Get Started
                 </Button>
               </div>
-            ) : null}
+            )}
           </div>
         </div>
+
+        {/* Mobile Menu */}
+        {mobileMenuOpen && user && !isLandingPage && (
+          <div className="lg:hidden border-t border-border/30 py-3 space-y-2 animate-slide-up">
+            {/* Mobile Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search stocks..."
+                value={searchQuery}
+                onChange={(e) => handleSearch(e.target.value)}
+                onFocus={() => searchQuery.length >= 2 && setShowResults(true)}
+                onBlur={() => setTimeout(() => setShowResults(false), 200)}
+                className="pl-10 h-10 bg-secondary/50 border-border/30 rounded-xl"
+              />
+              {showResults && searchResults.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-2 rounded-xl border border-border/50 bg-card shadow-2xl overflow-hidden z-50 max-h-64 overflow-y-auto">
+                  {searchResults.map((result) => (
+                    <button
+                      key={`mobile-${result.symbol}`}
+                      onClick={() => handleSelectStock(result.symbol)}
+                      className="w-full px-4 py-3 text-left hover:bg-secondary/50 transition-colors border-b border-border/20 last:border-b-0"
+                    >
+                      <p className="font-semibold text-sm">{result.symbol.replace('.NS', '')}</p>
+                      <p className="text-xs text-muted-foreground truncate">{result.name}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Mobile Nav Links */}
+            <div className="grid grid-cols-2 gap-2">
+              <Link href="/portfolio" onClick={() => setMobileMenuOpen(false)}>
+                <Button variant="outline" className="w-full justify-start gap-2 h-11 rounded-xl bg-blue-500/10 border-blue-500/30 text-blue-400">
+                  <Briefcase className="h-4 w-4" />
+                  Portfolio
+                </Button>
+              </Link>
+              <Link href="/options" onClick={() => setMobileMenuOpen(false)}>
+                <Button variant="outline" className="w-full justify-start gap-2 h-11 rounded-xl bg-cyan-500/10 border-cyan-500/30 text-cyan-400">
+                  <BarChart3 className="h-4 w-4" />
+                  Options
+                </Button>
+              </Link>
+              <Link href="/predictions" onClick={() => setMobileMenuOpen(false)}>
+                <Button variant="outline" className="w-full justify-start gap-2 h-11 rounded-xl bg-purple-500/10 border-purple-500/30">
+                  <Sparkles className="h-4 w-4 text-purple-400" />
+                  <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent font-medium">
+                    Predictions
+                  </span>
+                </Button>
+              </Link>
+              <Link href="/about" onClick={() => setMobileMenuOpen(false)}>
+                <Button variant="outline" className="w-full justify-start gap-2 h-11 rounded-xl bg-green-500/10 border-green-500/30 text-green-400">
+                  <Info className="h-4 w-4" />
+                  About
+                </Button>
+              </Link>
+            </div>
+          </div>
+        )}
       </div>
     </header>
   )

@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Header } from "@/components/header"
-import { IndicesTicker } from "@/components/indices-ticker"
 import { useAuth } from "@/contexts/auth-context"
 import { useBalance } from "@/hooks/use-balance"
 import { useToast } from "@/hooks/use-toast"
@@ -13,17 +12,26 @@ import { formatCurrency, formatPercentage, isMarketOpen } from "@/lib/market-uti
 import { 
   calculatePnL, 
   calculatePnLPercent, 
-  getEffectivePrice,
   storeLastTradingPrice,
   getLastTradingPrice,
-  calculatePortfolioMetrics 
 } from "@/lib/pnl-calculator"
 import { calculateOptionsPnL, calculateOptionsPnLPercent } from "@/lib/options-calculator"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
-import { TrendingUp, TrendingDown, Wallet, PieChart, ArrowUpRight, ArrowDownRight } from "lucide-react"
+import { 
+  TrendingUp, 
+  TrendingDown, 
+  Wallet, 
+  PieChart, 
+  ArrowUpRight, 
+  ArrowDownRight,
+  BarChart3,
+  Activity,
+  ShoppingCart,
+  DollarSign
+} from "lucide-react"
 
 interface Holding {
   symbol: string
@@ -40,28 +48,15 @@ interface HoldingWithQuote extends Holding {
   pnlPercent: number
 }
 
-interface Transaction {
-  id: string
-  symbol: string
-  name: string
-  type: "buy" | "sell"
-  quantity: number
-  price: number
-  total: number
-  timestamp: number
-}
-
 export default function PortfolioPage() {
   const { user, isLoading: authLoading, updateBalance } = useAuth()
   const { deductBalance, addBalance } = useBalance()
   const { toast } = useToast()
   const router = useRouter()
   const [holdings, setHoldings] = useState<HoldingWithQuote[]>([])
-  const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
   const [marketOpen, setMarketOpen] = useState(false)
 
-  // Helpers for storing last-known market prices so we have deterministic P/L
   const getLastPrices = () => {
     try {
       if (!user) return {} as Record<string, number>
@@ -80,68 +75,6 @@ export default function PortfolioPage() {
     } catch {}
   }
 
-  // Sync options with database
-  const syncOptionsWithDatabase = async (localOptions: any[]) => {
-    if (!user) return localOptions
-    
-    try {
-      // Save local options to database
-      if (localOptions && localOptions.length > 0) {
-        await fetch("/api/options/save", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            email: user.email,
-            options: localOptions 
-          }),
-        })
-      }
-
-      // Load options from database
-      const response = await fetch("/api/options/load", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: user.email }),
-      })
-      const data = await response.json()
-      
-      if (data.success && data.options && data.options.length > 0) {
-        // Update localStorage with database options
-        localStorage.setItem(`options_positions_${user.email}`, JSON.stringify(data.options))
-        return data.options
-      }
-      
-      return localOptions
-    } catch (error) {
-      console.warn("Failed to sync options with database:", error)
-      return localOptions
-    }
-  }
-
-  // Monitor market status and trigger immediate updates when market opens
-  useEffect(() => {
-    const checkMarketStatus = () => {
-      const status = isMarketOpen()
-      if (status.isOpen !== marketOpen) {
-        setMarketOpen(status.isOpen)
-        if (status.isOpen && holdings.length > 0) {
-          // Market just opened - fetch fresh data immediately
-          const fetchFreshData = async () => {
-            const symbols = holdings.map((h) => h.symbol)
-            const quotes = await fetchMultipleQuotes(symbols)
-            // Update will happen in the next regular fetchHoldings call
-          }
-          fetchFreshData()
-        }
-      }
-    }
-
-    checkMarketStatus()
-    const marketCheckInterval = setInterval(checkMarketStatus, 60000) // Check every minute
-
-    return () => clearInterval(marketCheckInterval)
-  }, [marketOpen, holdings.length])
-
   useEffect(() => {
     if (!authLoading && !user) {
       router.push("/login")
@@ -153,19 +86,16 @@ export default function PortfolioPage() {
 
       setLoading(true)
 
-      // Try to load holdings from database first
       let storedHoldings: Holding[] = []
       let clientHoldings: Holding[] = []
       
       try {
-        // Get client-side holdings from localStorage
         clientHoldings = JSON.parse(localStorage.getItem(`holdings_${user.email}`) || "[]")
       } catch (e) {
         console.warn("Failed to parse localStorage holdings")
       }
 
       try {
-        // Sync with database - this will ensure we get the latest data
         const response = await fetch("/api/holdings/sync", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -177,41 +107,12 @@ export default function PortfolioPage() {
         const data = await response.json()
         if (data.success && data.holdings) {
           storedHoldings = data.holdings
-          console.log(`Loaded holdings from ${data.source}:`, storedHoldings)
         }
       } catch (error) {
         console.warn("Failed to sync holdings from database, using localStorage:", error)
         storedHoldings = clientHoldings
       }
-      
-      // Also refresh balance from database
-      try {
-        await fetch("/api/balance/get", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: user.email }),
-        })
-          .then(res => res.json())
-          .then(data => {
-            if (data.balance !== undefined) {
-              // Balance is updated in auth context via refreshBalanceFromDatabase
-            }
-          })
-      } catch (error) {
-        console.warn("Failed to refresh balance:", error)
-      }
 
-      // Sync options with database
-      try {
-        const clientOptions = JSON.parse(localStorage.getItem(`options_positions_${user.email}`) || "[]")
-        await syncOptionsWithDatabase(clientOptions)
-        console.log("Options synced with database")
-      } catch (error) {
-        console.warn("Failed to sync options with database:", error)
-      }
-
-      // Filter out any index holdings (NIFTY, BANKNIFTY, SENSEX) as they shouldn't be in portfolio
-      // Only keep actual stock holdings
       const stockHoldings = storedHoldings.filter((holding: Holding) => {
         const symbol = holding.symbol.replace('.NS', '').toUpperCase()
         return !['NIFTY', 'BANKNIFTY', 'SENSEX'].includes(symbol)
@@ -229,24 +130,13 @@ export default function PortfolioPage() {
       const holdingsWithQuotes = stockHoldings.map((holding: Holding) => {
         const quote = quotes.find((q) => q.symbol === holding.symbol)
         const currentMarketPrice = quote?.regularMarketPrice
-        
-        // Check market status first
         const marketStatus = isMarketOpen()
         
-        // When market is closed, use avgPrice as the reference point for P&L
-        // This ensures that newly bought stocks show 0 P&L until market opens and fetches real prices
-        
-        // Determine effective price for P&L calculation:
-        // - If market is OPEN and we have a valid price: use current market price
-        // - If market is CLOSED: use avgPrice (entry price) to show 0 P&L until market opens
         let effectivePrice = holding.avgPrice
         if (marketStatus.isOpen && currentMarketPrice && !isNaN(currentMarketPrice) && currentMarketPrice > 0) {
-          // Market is open and we have a valid current price
           effectivePrice = currentMarketPrice
         }
         
-        // Store the current market price when market is open
-        // This will be used as reference for next market close
         if (marketStatus.isOpen && currentMarketPrice && !isNaN(currentMarketPrice) && currentMarketPrice > 0) {
           storeLastTradingPrice(user.email, holding.symbol, currentMarketPrice)
         }
@@ -255,12 +145,7 @@ export default function PortfolioPage() {
         const safeAvgPrice = isNaN(holding.avgPrice) ? 0 : holding.avgPrice
         const safeQuantity = isNaN(holding.quantity) ? 0 : holding.quantity
         
-        // Portfolio value: use effective price (which respects market status)
-        const portfolioPrice = safeEffectivePrice
-        const currentValue = portfolioPrice * safeQuantity
-        
-        // P&L = (Effective Price - Avg Price) * Quantity
-        // When market is closed, effectivePrice = avgPrice, so P&L = 0
+        const currentValue = safeEffectivePrice * safeQuantity
         const pnl = calculatePnL(safeAvgPrice, safeEffectivePrice, safeQuantity)
         const pnlPercent = calculatePnLPercent(safeAvgPrice, safeEffectivePrice)
 
@@ -279,14 +164,13 @@ export default function PortfolioPage() {
 
     fetchHoldings()
     
-    // Dynamic interval that adjusts based on market status
     let interval: NodeJS.Timeout
     const scheduleNextUpdate = () => {
       const marketStatus = isMarketOpen()
-      const updateInterval = marketStatus.isOpen ? 30000 : 300000 // 30s during market, 5min when closed
+      const updateInterval = marketStatus.isOpen ? 30000 : 300000
       interval = setTimeout(() => {
         fetchHoldings()
-        scheduleNextUpdate() // Schedule next update
+        scheduleNextUpdate()
       }, updateInterval)
     }
     scheduleNextUpdate()
@@ -296,88 +180,16 @@ export default function PortfolioPage() {
     }
   }, [user, authLoading, router])
 
-  // Fetch live option prices only when market is open
-  useEffect(() => {
-    if (!user) return
-
-    // Check if market is open
-    const marketStatus = isMarketOpen()
-    
-    // If market is closed, don't fetch new prices but keep using stored prices
-    if (!marketStatus.isOpen) {
-      console.log('Market is closed, using stored prices for P&L calculation')
-      return
-    }
-
-    // Market is open, fetch live prices
-    const fetchLiveOptionPrices = async () => {
-      try {
-        const rawOps = localStorage.getItem(`options_positions_${user.email}`) || '[]'
-        const positions = JSON.parse(rawOps) as any[]
-        
-        if (!positions || positions.length === 0) return
-
-        // Get unique indices
-        const uniqueIndices = [...new Set(positions.map((p: any) => p.index))]
-        
-        // Fetch option chains for each index
-        for (const indexSymbol of uniqueIndices) {
-          try {
-            const response = await fetch(`/api/options/chain?symbol=${indexSymbol}&strikeGap=50`)
-            
-            if (!response.ok) {
-              console.warn(`API error for ${indexSymbol}:`, response.status)
-              continue
-            }
-            
-            const data = await response.json()
-            
-            if (data.success && data.strikes && Array.isArray(data.strikes)) {
-              // Update prices for positions of this index
-              const lastPrices = getLastPrices()
-              
-              data.strikes.forEach((strikeData: any) => {
-                // Find all positions matching this strike
-                positions.forEach((pos: any) => {
-                  if (pos.index === indexSymbol && pos.strike === strikeData.strike) {
-                    const currentPrice = pos.type === 'CE' ? strikeData.cePrice : strikeData.pePrice
-                    const strikeKey = `${pos.index}-${pos.strike}-${pos.type}`
-                    lastPrices[strikeKey] = currentPrice
-                  }
-                })
-              })
-              
-              // Save updated prices
-              localStorage.setItem(`last_prices_${user.email}`, JSON.stringify(lastPrices))
-              console.log(`Updated prices for ${indexSymbol}`)
-            }
-          } catch (error) {
-            console.warn(`Failed to fetch option chain for ${indexSymbol}:`, error)
-          }
-        }
-      } catch (error) {
-        console.warn('Failed to fetch live option prices:', error)
-      }
-    }
-
-    // Fetch immediately on mount if market is open
-    fetchLiveOptionPrices()
-
-    // Update every 10 seconds when market is open
-    const interval = setInterval(fetchLiveOptionPrices, 10000)
-
-    return () => clearInterval(interval)
-  }, [user])
-
   if (authLoading || !user) {
     return (
       <div className="min-h-screen bg-background">
         <Header />
-        <div className="hidden md:block">
-          <IndicesTicker />
-        </div>
         <main className="container mx-auto px-4 py-6">
           <Skeleton className="h-8 w-48 mb-6" />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            {[1,2,3,4].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)}
+          </div>
+          <Skeleton className="h-64 rounded-xl" />
         </main>
       </div>
     )
@@ -386,95 +198,94 @@ export default function PortfolioPage() {
   const totalInvested = holdings.reduce((sum, h) => {
     const avgPrice = isNaN(h.avgPrice) ? 0 : h.avgPrice
     const quantity = isNaN(h.quantity) ? 0 : h.quantity
-    const investedValue = avgPrice * quantity
-    return sum + (isNaN(investedValue) ? 0 : investedValue)
+    return sum + avgPrice * quantity
   }, 0)
   
-  // Portfolio value = sum of all current values at market prices
-  // When market is closed, this uses last trading prices
   const totalCurrentValue = holdings.reduce((sum, h) => {
-    const currentValue = isNaN(h.currentValue) ? 0 : h.currentValue
-    return sum + currentValue
+    return sum + (isNaN(h.currentValue) ? 0 : h.currentValue)
   }, 0)
   
-  // Total P&L = Total Current Value - Total Invested
   const totalPnL = totalCurrentValue - totalInvested
   const totalPnLPercent = totalInvested > 0 ? (totalPnL / totalInvested) * 100 : 0
 
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <div className="hidden md:block">
-        <IndicesTicker />
-      </div>
 
-      <main className="container mx-auto px-3 py-3 md:px-4 md:py-6">
-        <h1 className="text-lg md:text-2xl font-bold mb-3 md:mb-6">Portfolio Dashboard</h1>
+      <main className="container mx-auto px-3 py-4 md:px-4 md:py-6">
+        {/* Page Header */}
+        <div className="mb-6">
+          <h1 className="text-2xl md:text-3xl font-bold mb-1">Portfolio</h1>
+          <p className="text-muted-foreground text-sm">Track your investments and P&L</p>
+        </div>
 
-        {/* Overview Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3 lg:gap-4 mb-3 md:mb-8">
-          <Card className="border-border">
-            <CardContent className="p-2 md:p-4">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+          <Card className="glass-card border-border/30">
+            <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-[10px] md:text-sm text-muted-foreground">Available Balance</p>
-                  <p className="text-base md:text-2xl font-bold font-mono">{formatCurrency(user.balance)}</p>
-                </div>
-                <div className="h-6 w-6 md:h-10 md:w-10 rounded-full bg-primary/20 flex items-center justify-center">
-                  <Wallet className="h-3 w-3 md:h-5 md:w-5 text-primary" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-border">
-            <CardContent className="p-2 md:p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] md:text-sm text-muted-foreground">Portfolio Value</p>
-                  <p className="text-base md:text-2xl font-bold font-mono">{formatCurrency(totalCurrentValue)}</p>
-                </div>
-                <div className="h-6 w-6 md:h-10 md:w-10 rounded-full bg-accent/20 flex items-center justify-center">
-                  <PieChart className="h-3 w-3 md:h-5 md:w-5 text-accent" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-border">
-            <CardContent className="p-2 md:p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] md:text-sm text-muted-foreground">Total Invested</p>
-                  <p className="text-base md:text-2xl font-bold font-mono">{formatCurrency(totalInvested)}</p>
-                </div>
-                <div className="h-6 w-6 md:h-10 md:w-10 rounded-full bg-secondary flex items-center justify-center">
-                  <ArrowUpRight className="h-3 w-3 md:h-5 md:w-5 text-muted-foreground" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-border">
-            <CardContent className="p-2 md:p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] md:text-sm text-muted-foreground">Total P&L</p>
-                  <p className={`text-base md:text-2xl font-bold font-mono ${totalPnL >= 0 ? "text-primary" : "text-destructive"}`}>
-                    {totalPnL >= 0 ? "+" : ""}
-                    {formatCurrency(totalPnL)}
+                  <p className="text-xs text-muted-foreground mb-1">Available Balance</p>
+                  <p className="text-xl md:text-2xl font-bold font-mono text-primary">
+                    {formatCurrency(user.balance)}
                   </p>
-                  <p className={`text-[10px] md:text-sm ${totalPnL >= 0 ? "text-primary" : "text-destructive"}`}>
+                </div>
+                <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <Wallet className="h-5 w-5 text-primary" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="glass-card border-border/30">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Portfolio Value</p>
+                  <p className="text-xl md:text-2xl font-bold font-mono">
+                    {formatCurrency(totalCurrentValue)}
+                  </p>
+                </div>
+                <div className="h-10 w-10 rounded-xl bg-accent/10 flex items-center justify-center">
+                  <PieChart className="h-5 w-5 text-accent" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="glass-card border-border/30">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Total Invested</p>
+                  <p className="text-xl md:text-2xl font-bold font-mono">
+                    {formatCurrency(totalInvested)}
+                  </p>
+                </div>
+                <div className="h-10 w-10 rounded-xl bg-secondary flex items-center justify-center">
+                  <BarChart3 className="h-5 w-5 text-muted-foreground" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className={`glass-card border-border/30 ${totalPnL >= 0 ? 'border-l-4 border-l-primary' : 'border-l-4 border-l-destructive'}`}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Total P&L</p>
+                  <p className={`text-xl md:text-2xl font-bold font-mono ${totalPnL >= 0 ? "text-primary" : "text-destructive"}`}>
+                    {totalPnL >= 0 ? "+" : ""}{formatCurrency(totalPnL)}
+                  </p>
+                  <p className={`text-xs ${totalPnL >= 0 ? "text-primary" : "text-destructive"}`}>
                     {formatPercentage(totalPnLPercent)}
                   </p>
                 </div>
-                <div
-                  className={`h-6 w-6 md:h-10 md:w-10 rounded-full flex items-center justify-center ${totalPnL >= 0 ? "bg-primary/20" : "bg-destructive/20"}`}
-                >
+                <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${totalPnL >= 0 ? "bg-primary/10" : "bg-destructive/10"}`}>
                   {totalPnL >= 0 ? (
-                    <TrendingUp className="h-3 w-3 md:h-5 md:w-5 text-primary" />
+                    <TrendingUp className="h-5 w-5 text-primary" />
                   ) : (
-                    <TrendingDown className="h-3 w-3 md:h-5 md:w-5 text-destructive" />
+                    <TrendingDown className="h-5 w-5 text-destructive" />
                   )}
                 </div>
               </div>
@@ -482,45 +293,41 @@ export default function PortfolioPage() {
           </Card>
         </div>
 
-        {/* Holdings List */}
-        <Card className="border-border">
-          <CardHeader className="pb-2 md:pb-3">
+        {/* Holdings Section */}
+        <Card className="border-border/30 overflow-hidden mb-6">
+          <CardHeader className="border-b border-border/30 bg-gradient-to-r from-primary/5 to-transparent">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base md:text-lg">Your Holdings</CardTitle>
+              <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                <ShoppingCart className="h-5 w-5" />
+                Stock Holdings ({holdings.length})
+              </CardTitle>
               {holdings.length > 0 && (
                 <Button
-                  variant="destructive"
+                  variant="outline"
                   size="sm"
-                  className="text-xs"
+                  className="text-xs text-destructive border-destructive/30 hover:bg-destructive/10"
                   onClick={async () => {
                     if (!user) return
-                    if (!confirm('Are you sure you want to sell all stock holdings? This action cannot be undone.')) return
+                    if (!confirm('Sell all stock holdings? This action cannot be undone.')) return
                     
                     const storageKey = `holdings_${user.email}`
-                    
-                    // Load current holdings
                     const rawHoldings = localStorage.getItem(storageKey) || '[]'
                     const holdingsArr: any[] = JSON.parse(rawHoldings)
                     
-                    // Filter out indices (NIFTY, BANKNIFTY, SENSEX) - they shouldn't be in portfolio
                     const stockHoldings = holdingsArr.filter((holding: any) => {
                       const symbol = holding.symbol.replace('.NS', '').toUpperCase()
                       return !['NIFTY', 'BANKNIFTY', 'SENSEX'].includes(symbol)
                     })
                     
                     let totalCredit = 0
-                    
-                    // Calculate total credit from stock holdings
                     stockHoldings.forEach((holding: any) => {
                       const quote = holdings.find(h => h.symbol === holding.symbol)?.quote
                       const price = quote?.regularMarketPrice || holding.avgPrice
                       totalCredit += price * holding.quantity
                     })
                     
-                    // Clear stock holdings from localStorage
                     localStorage.setItem(storageKey, '[]')
                     
-                    // Save empty holdings to database
                     try {
                       await fetch("/api/holdings/save", {
                         method: "POST",
@@ -528,25 +335,22 @@ export default function PortfolioPage() {
                         body: JSON.stringify({ email: user.email, holdings: [] }),
                       })
                     } catch (error) {
-                      console.warn("Failed to save empty holdings to database:", error)
+                      console.warn("Failed to save empty holdings:", error)
                     }
                     
-                    // Record individual transactions for stock holdings
                     for (const holding of stockHoldings) {
                       const quote = holdings.find(h => h.symbol === holding.symbol)?.quote
                       const sellPrice = quote?.regularMarketPrice || holding.avgPrice
-                      const sellQuantity = holding.quantity
-                      const sellValue = sellPrice * sellQuantity
+                      const sellValue = sellPrice * holding.quantity
                       
-                      // Record individual transaction
                       try {
-                        await addBalance(sellValue, "SELL", holding.symbol, sellQuantity, sellPrice)
+                        await addBalance(sellValue, "SELL", holding.symbol, holding.quantity, sellPrice)
                       } catch (error) {
                         console.warn(`Failed to record transaction for ${holding.symbol}:`, error)
                       }
                     }
                     
-                    toast({ title: 'Sold All Stock Holdings', description: `Received ${formatCurrency(totalCredit)} from selling all stock holdings.` })
+                    toast({ title: 'All Holdings Sold', description: `Received ${formatCurrency(totalCredit)}` })
                     setHoldings([])
                   }}
                 >
@@ -555,128 +359,290 @@ export default function PortfolioPage() {
               )}
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-0">
             {loading ? (
-              <div className="space-y-2 md:space-y-4">
+              <div className="p-4 space-y-3">
                 {[1, 2, 3].map((i) => (
-                  <Skeleton key={i} className="h-16 md:h-20 rounded-lg" />
+                  <Skeleton key={i} className="h-20 rounded-lg" />
                 ))}
               </div>
             ) : holdings.length === 0 ? (
-              <div className="text-center py-8 md:py-12">
-                <PieChart className="h-10 w-10 md:h-12 md:w-12 text-muted-foreground mx-auto mb-3 md:mb-4" />
-                <h3 className="text-base md:text-lg font-medium mb-1 md:mb-2">No holdings yet</h3>
-                <p className="text-muted-foreground text-sm mb-3 md:mb-4">Start trading to build your portfolio</p>
-                <Link href="/" className="text-primary hover:underline text-sm">
-                  Browse stocks
+              <div className="text-center py-16 px-4">
+                <div className="h-16 w-16 rounded-2xl bg-secondary/50 flex items-center justify-center mx-auto mb-4">
+                  <PieChart className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">No Holdings Yet</h3>
+                <p className="text-muted-foreground text-sm mb-4">Start trading to build your portfolio</p>
+                <Link href="/">
+                  <Button variant="outline" size="sm">Browse Stocks</Button>
                 </Link>
               </div>
             ) : (
-              <div className="space-y-2 md:space-y-3">
-                {holdings.map((holding) => {
-                  const isOption = typeof holding.symbol === 'string' && holding.symbol.includes('-OPT-')
-                  return (
-                    <Link key={holding.symbol} href={`/stock/${encodeURIComponent(holding.symbol)}`} className="block">
-                      <div className="flex items-center justify-between p-2 md:p-4 rounded-md md:rounded-lg bg-secondary/50 hover:bg-secondary transition-colors">
-                        <div className="flex items-center gap-2 md:gap-4">
-                          <div>
-                            <h3 className="font-semibold text-sm md:text-base">{holding.symbol.replace('.NS', '')}</h3>
-                            <p className="text-xs md:text-sm text-muted-foreground">{holding.quantity} {isOption ? 'lots' : 'shares'}</p>
-                          </div>
+              <div className="divide-y divide-border/30">
+                {holdings.map((holding) => (
+                  <Link 
+                    key={holding.symbol} 
+                    href={`/stock/${encodeURIComponent(holding.symbol)}`} 
+                    className="block hover:bg-secondary/30 transition-colors"
+                  >
+                    <div className="flex items-center justify-between p-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-semibold">{holding.symbol.replace('.NS', '').replace('.BO', '')}</h3>
+                          <Badge variant="secondary" className="text-xs">{holding.quantity} shares</Badge>
                         </div>
+                        <p className="text-xs text-muted-foreground truncate">{holding.name}</p>
+                      </div>
 
-                        <div className="text-center hidden sm:block">
-                          <p className="text-xs md:text-sm text-muted-foreground">Entry Price</p>
-                          <p className="font-mono text-xs md:text-sm">{formatCurrency(holding.avgPrice)}</p>
+                      <div className="hidden sm:flex flex-col items-end mr-6">
+                        <p className="text-xs text-muted-foreground">Avg. Price</p>
+                        <p className="font-mono text-sm">{formatCurrency(holding.avgPrice)}</p>
+                      </div>
+
+                      <div className="hidden md:flex flex-col items-end mr-6">
+                        <p className="text-xs text-muted-foreground">Current</p>
+                        <p className="font-mono text-sm">{formatCurrency(holding.quote?.regularMarketPrice || holding.avgPrice)}</p>
+                      </div>
+
+                      <div className="hidden lg:flex flex-col items-end mr-6">
+                        <p className="text-xs text-muted-foreground">Value</p>
+                        <p className="font-mono text-sm font-semibold">{formatCurrency(holding.currentValue)}</p>
+                      </div>
+
+                      <div className="text-right min-w-[100px]">
+                        <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${
+                          holding.pnl >= 0 
+                            ? "bg-primary/10 text-primary" 
+                            : "bg-destructive/10 text-destructive"
+                        }`}>
+                          {holding.pnl >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                          {formatPercentage(holding.pnlPercent)}
                         </div>
+                        <p className={`text-sm font-semibold mt-1 ${holding.pnl >= 0 ? "text-primary" : "text-destructive"}`}>
+                          {holding.pnl >= 0 ? "+" : ""}{formatCurrency(holding.pnl)}
+                        </p>
+                      </div>
 
-                        <div className="text-center">
-                          <p className="text-xs md:text-sm text-muted-foreground">Current Price</p>
-                          <p className="font-mono text-xs md:text-sm">
-                            {isOption 
-                              ? formatCurrency(typeof getLastPrices()[holding.symbol.replace('-OPT', '')] === 'number' && !isNaN(getLastPrices()[holding.symbol.replace('-OPT', '')]) 
-                                  ? getLastPrices()[holding.symbol.replace('-OPT', '')] 
-                                  : holding.avgPrice)
-                              : formatCurrency(holding.quote?.regularMarketPrice || holding.avgPrice)
+                      <div className="ml-4 flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 px-3 text-xs"
+                          onClick={async (e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            if (!user) return
+                            
+                            const price = holding.quote?.regularMarketPrice || holding.avgPrice
+                            const qtyStr = window.prompt('How many shares to buy?', '1')
+                            const qtyAdd = Math.max(0, Number.parseInt(qtyStr || '0') || 0)
+                            if (!qtyAdd) return
+                            
+                            const totalCost = price * qtyAdd
+                            if (totalCost > user.balance) {
+                              toast({ title: 'Insufficient Balance', description: `You need ${formatCurrency(totalCost - user.balance)} more.`, variant: 'destructive' })
+                              return
                             }
+
+                            const storageKey = `holdings_${user.email}`
+                            const raw = localStorage.getItem(storageKey) || '[]'
+                            const arr: any[] = JSON.parse(raw)
+                            const idx = arr.findIndex((h) => h.symbol === holding.symbol)
+                            
+                            if (idx >= 0) {
+                              const existing = arr[idx]
+                              const newQty = existing.quantity + qtyAdd
+                              const newAvg = (existing.avgPrice * existing.quantity + price * qtyAdd) / newQty
+                              arr[idx] = { ...existing, quantity: newQty, avgPrice: newAvg }
+                            }
+                            
+                            localStorage.setItem(storageKey, JSON.stringify(arr))
+                            
+                            const balanceResult = await deductBalance(totalCost, "BUY", holding.symbol, qtyAdd, price)
+                            if (!balanceResult.success) {
+                              toast({ title: 'Transaction Failed', description: balanceResult.error, variant: 'destructive' })
+                              return
+                            }
+                            
+                            toast({ title: 'Order Executed', description: `Bought ${qtyAdd} shares of ${holding.symbol.replace('.NS', '')}` })
+                            window.location.reload()
+                          }}
+                        >
+                          Buy
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 px-3 text-xs text-destructive border-destructive/30 hover:bg-destructive/10"
+                          onClick={async (e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            if (!user) return
+                            
+                            const price = holding.quote?.regularMarketPrice || holding.avgPrice
+                            const qtyStr = window.prompt('How many shares to sell?', '1')
+                            const qtySell = Math.max(0, Number.parseInt(qtyStr || '0') || 0)
+                            if (!qtySell) return
+                            
+                            if (qtySell > holding.quantity) {
+                              toast({ title: 'Invalid Quantity', description: `You only have ${holding.quantity} shares.`, variant: 'destructive' })
+                              return
+                            }
+
+                            const storageKey = `holdings_${user.email}`
+                            const raw = localStorage.getItem(storageKey) || '[]'
+                            const arr: any[] = JSON.parse(raw)
+                            const idx = arr.findIndex((h) => h.symbol === holding.symbol)
+                            
+                            if (idx >= 0) {
+                              const newQty = arr[idx].quantity - qtySell
+                              if (newQty <= 0) arr.splice(idx, 1)
+                              else arr[idx] = { ...arr[idx], quantity: newQty }
+                            }
+                            
+                            localStorage.setItem(storageKey, JSON.stringify(arr))
+                            
+                            const sellValue = price * qtySell
+                            const profitLoss = (price - holding.avgPrice) * qtySell
+                            const balanceResult = await addBalance(sellValue, "SELL", holding.symbol, qtySell, price)
+                            if (!balanceResult.success) {
+                              toast({ title: 'Transaction Failed', description: balanceResult.error, variant: 'destructive' })
+                              return
+                            }
+                            
+                            toast({ 
+                              title: 'Order Executed', 
+                              description: `Sold ${qtySell} shares for ${formatCurrency(sellValue)}. ${profitLoss >= 0 ? 'Profit' : 'Loss'}: ${formatCurrency(Math.abs(profitLoss))}`,
+                              variant: profitLoss >= 0 ? "default" : "destructive"
+                            })
+                            window.location.reload()
+                          }}
+                        >
+                          Sell
+                        </Button>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Options Positions */}
+        <Card className="border-border/30 overflow-hidden">
+          <CardHeader className="border-b border-border/30 bg-gradient-to-r from-accent/5 to-transparent">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                <Activity className="h-5 w-5" />
+                Options Positions
+              </CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="p-4">
+            {(() => {
+              const raw = localStorage.getItem(`options_positions_${user.email}`) || '[]'
+              const positions = JSON.parse(raw) as any[]
+              
+              if (!positions || positions.length === 0) {
+                return (
+                  <div className="text-center py-12">
+                    <div className="h-12 w-12 rounded-xl bg-secondary/50 flex items-center justify-center mx-auto mb-3">
+                      <Activity className="h-6 w-6 text-muted-foreground" />
+                    </div>
+                    <p className="text-muted-foreground text-sm">No options positions yet</p>
+                    <Link href="/options" className="text-primary text-sm hover:underline">
+                      Start trading options
+                    </Link>
+                  </div>
+                )
+              }
+
+              return (
+                <div className="space-y-3">
+                  {positions.map((pos) => {
+                    const strikeKey = `${pos.index}-${pos.strike}-${pos.type}`
+                    const lastPrices = getLastPrices()
+                    const marketStatus = isMarketOpen()
+                    
+                    let currentPrice = pos.price
+                    if (marketStatus.isOpen && typeof lastPrices[strikeKey] === 'number') {
+                      currentPrice = lastPrices[strikeKey]
+                    }
+                    
+                    const pnl = calculateOptionsPnL(pos.price, currentPrice, pos.action, pos.quantity, pos.lotSize)
+                    const pnlPercent = calculateOptionsPnLPercent(pos.price, currentPrice, pos.action)
+
+                    return (
+                      <div key={pos.id} className="flex items-center justify-between p-4 rounded-xl bg-secondary/20 border border-border/30">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-semibold">{pos.index}</span>
+                            <span className="font-mono">{Number(pos.strike).toLocaleString("en-IN")}</span>
+                            <Badge variant={pos.type === "CE" ? "default" : "destructive"} className="text-xs">
+                              {pos.type}
+                            </Badge>
+                            <Badge variant="outline" className="text-xs">{pos.action}</Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {pos.quantity} lot(s) @ {formatCurrency(pos.price)} = {formatCurrency(pos.price * pos.quantity * pos.lotSize)}
+                          </p>
+                        </div>
+                        
+                        <div className="text-right mr-4">
+                          <p className={`font-mono font-semibold ${pnl >= 0 ? 'text-primary' : 'text-destructive'}`}>
+                            {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Now: {formatCurrency(currentPrice)} ({pnlPercent >= 0 ? '+' : ''}{pnlPercent.toFixed(2)}%)
                           </p>
                         </div>
 
-                        <div className="text-center hidden md:block">
-                          <p className="text-xs md:text-sm text-muted-foreground">Portfolio Value</p>
-                          <p className="font-mono font-medium text-xs md:text-sm">{formatCurrency(holding.currentValue)}</p>
-                        </div>
-
-                        <div className="text-right">
-                          <Badge
-                            variant={holding.pnl >= 0 ? "default" : "destructive"}
-                            className={`text-xs md:text-sm ${
-                              holding.pnl >= 0 ? "bg-primary/20 text-primary" : "bg-destructive/20 text-destructive"
-                            }`}
-                          >
-                            {holding.pnl >= 0 ? (
-                              <ArrowUpRight className="h-2 w-2 md:h-3 md:w-3 mr-1" />
-                            ) : (
-                              <ArrowDownRight className="h-2 w-2 md:h-3 md:w-3 mr-1" />
-                            )}
-                            {formatPercentage(holding.pnlPercent)}
-                          </Badge>
-                          <p
-                            className={`text-xs md:text-sm font-medium mt-0.5 md:mt-1 ${holding.pnl >= 0 ? "text-primary" : "text-destructive"}`}
-                          >
-                            {holding.pnl >= 0 ? "+" : ""}
-                            {formatCurrency(holding.pnl)}
-                          </p>
-                        </div>
-                        <div className="ml-2 md:ml-4 flex items-center gap-1 md:gap-2">
+                        <div className="flex gap-2">
                           <Button
                             size="sm"
                             variant="outline"
-                            className="text-xs px-2 md:px-3 h-6 md:h-8"
-                            onClick={async (e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              try {
-                                if (!user) return
-                                const storageKey = `holdings_${user.email}`
-                                const raw = localStorage.getItem(storageKey) || '[]'
-                                const arr: any[] = JSON.parse(raw)
+                            className="h-8 px-3 text-xs"
+                            onClick={async () => {
+                              if (!user) return
+                              const qtyStr = window.prompt('How many lots to buy?', '1')
+                              const qtyBuy = Math.max(0, Number.parseInt(qtyStr || '0') || 0)
+                              if (!qtyBuy) return
 
-                                // find index and update
-                                const idx = arr.findIndex((h) => h.symbol === holding.symbol)
-                                if (idx >= 0) {
-                                  // buying: add one share/lot
-                                  const item = arr[idx]
-                                  const price = holding.quote?.regularMarketPrice || holding.avgPrice
-
-                                  if (price > user.balance) {
-                                    toast({ title: 'Insufficient Balance', description: `You need ${formatCurrency(price - user.balance)} more to buy.`, variant: 'destructive' })
-                                    return
-                                  }
-
-                                  const qtyStr = window.prompt('How many shares to buy?', '1')
-                                  const qtyAdd = Math.max(0, Number.parseInt(qtyStr || '0') || 0)
-                                  if (!qtyAdd) return
-                                  const existing = arr[idx]
-                                  const newQty = existing.quantity + qtyAdd
-                                  const newAvg = (existing.avgPrice * existing.quantity + price * qtyAdd) / newQty
-                                  arr[idx] = { ...existing, quantity: newQty, avgPrice: newAvg }
-                                  localStorage.setItem(storageKey, JSON.stringify(arr))
-                                  
-                                  // Deduct balance using API
-                                  const balanceResult = await deductBalance(price * qtyAdd, "BUY", holding.symbol, qtyAdd, price)
-                                  if (!balanceResult.success) {
-                                    toast({ title: 'Transaction Failed', description: balanceResult.error, variant: 'destructive' })
-                                    return
-                                  }
-                                  
-                                  // store last-known price for deterministic P/L
-                                  try { setLastPrice(holding.symbol, price) } catch {}
-                                  toast({ title: 'Bought', description: `Bought ${qtyAdd} shares of ${holding.symbol}` })
-                                }
-                              } catch (err) {
-                                console.error(err)
+                              const totalCost = currentPrice * qtyBuy * pos.lotSize
+                              if (totalCost > (user.balance || 0)) {
+                                toast({ title: 'Insufficient Balance', variant: 'destructive' })
+                                return
                               }
+
+                              const rawOps = localStorage.getItem(`options_positions_${user.email}`) || '[]'
+                              const ops: any[] = JSON.parse(rawOps)
+
+                              const newPos = {
+                                id: Math.random().toString(36).substring(7),
+                                type: pos.type,
+                                action: 'BUY',
+                                index: pos.index,
+                                strike: pos.strike,
+                                price: currentPrice,
+                                quantity: qtyBuy,
+                                lotSize: pos.lotSize || 50,
+                                totalValue: totalCost,
+                                timestamp: Date.now(),
+                              }
+
+                              ops.push(newPos)
+                              localStorage.setItem(`options_positions_${user.email}`, JSON.stringify(ops))
+                              
+                              const balanceResult = await deductBalance(totalCost, "BUY", strikeKey, qtyBuy, currentPrice)
+                              if (!balanceResult.success) {
+                                toast({ title: 'Transaction Failed', description: balanceResult.error, variant: 'destructive' })
+                                return
+                              }
+                              
+                              toast({ title: 'Order Placed', description: `Bought ${qtyBuy} lot(s) @ ${formatCurrency(currentPrice)}` })
+                              window.location.reload()
                             }}
                           >
                             Buy
@@ -685,360 +651,62 @@ export default function PortfolioPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            className="text-xs px-2 md:px-3 h-6 md:h-8"
-                            onClick={async (e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              try {
-                                if (!user) return
-                                const storageKey = `holdings_${user.email}`
-                                const raw = localStorage.getItem(storageKey) || '[]'
-                                const arr: any[] = JSON.parse(raw)
-                                const idx = arr.findIndex((h) => h.symbol === holding.symbol)
-                                if (idx >= 0) {
-                                  const item = arr[idx]
-                                  if (item.quantity <= 0) return
+                            className="h-8 px-3 text-xs text-destructive border-destructive/30 hover:bg-destructive/10"
+                            onClick={async () => {
+                              if (!user) return
+                              const rawOps = localStorage.getItem(`options_positions_${user.email}`) || '[]'
+                              const ops: any[] = JSON.parse(rawOps)
+                              const position = ops.find((p) => p.id === pos.id)
+                              if (!position) return
 
-                                  const price = holding.quote?.regularMarketPrice || holding.avgPrice
+                              const qtyStr = window.prompt('How many lots to sell?', '1')
+                              const qtySell = Math.max(0, Number.parseInt(qtyStr || '0') || 0)
+                              if (!qtySell) return
 
-                                  const qtyStr = window.prompt('How many shares to sell?', '1')
-                                  const qtySell = Math.max(0, Number.parseInt(qtyStr || '0') || 0)
-                                  if (!qtySell) return
-                                  const newQty = item.quantity - qtySell
-                                  if (newQty <= 0) arr.splice(idx, 1)
-                                  else arr[idx] = { ...item, quantity: newQty }
-                                  localStorage.setItem(storageKey, JSON.stringify(arr))
-                                  
-                                  // Add balance using API
-                                  // Credit = current market price × quantity
-                                  const totalCredit = price * qtySell
-                                  const balanceResult = await addBalance(totalCredit, "SELL", holding.symbol, qtySell, price)
-                                  if (!balanceResult.success) {
-                                    toast({ title: 'Transaction Failed', description: balanceResult.error, variant: 'destructive' })
-                                    return
-                                  }
-                                  
-                                  try { setLastPrice(holding.symbol, price) } catch {}
-                                  toast({ title: 'Sold', description: `Sold ${qtySell} shares of ${holding.symbol} for ${formatCurrency(totalCredit)}` })
-                                }
-                              } catch (err) {
-                                console.error(err)
+                              if (qtySell > position.quantity) {
+                                toast({ title: 'Invalid Quantity', variant: 'destructive' })
+                                return
                               }
+
+                              const sellValue = currentPrice * qtySell * position.lotSize
+                              const positionPnl = calculatePnL(position.price, currentPrice, qtySell * position.lotSize)
+
+                              const balanceResult = await addBalance(sellValue, "SELL", strikeKey, qtySell, currentPrice)
+                              if (!balanceResult.success) {
+                                toast({ title: 'Transaction Failed', description: balanceResult.error, variant: 'destructive' })
+                                return
+                              }
+
+                              let updatedOps: any[]
+                              if (qtySell >= position.quantity) {
+                                updatedOps = ops.filter((p) => p.id !== position.id)
+                              } else {
+                                updatedOps = ops.map((p) => 
+                                  p.id === position.id 
+                                    ? { ...p, quantity: p.quantity - qtySell } 
+                                    : p
+                                )
+                              }
+                              
+                              localStorage.setItem(`options_positions_${user.email}`, JSON.stringify(updatedOps))
+
+                              toast({ 
+                                title: 'Position Closed', 
+                                description: `${positionPnl >= 0 ? 'Profit' : 'Loss'}: ${formatCurrency(Math.abs(positionPnl))}`,
+                                variant: positionPnl >= 0 ? "default" : "destructive"
+                              })
+                              window.location.reload()
                             }}
                           >
                             Sell
                           </Button>
                         </div>
                       </div>
-                    </Link>
-                  )
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Options History */}
-        <Card className="border-border mt-4 md:mt-6">
-          <CardHeader className="pb-2 md:pb-3 flex flex-row items-center justify-between">
-            <CardTitle className="text-base md:text-lg">Options History</CardTitle>
-            <Button
-              size="sm"
-              variant="destructive"
-              className="text-xs px-2 md:px-3 h-6 md:h-8"
-              onClick={async () => {
-                if (!user) return
-                const confirm = window.confirm('Close all option positions? This action cannot be undone.')
-                if (!confirm) return
-                
-                try {
-                  const rawOps = localStorage.getItem(`options_positions_${user.email}`) || '[]'
-                  const ops: any[] = JSON.parse(rawOps)
-                  if (ops.length === 0) {
-                    toast({ title: 'No Positions', description: 'No options positions to close.', variant: 'default' })
-                    return
-                  }
-
-                  let totalCredit = 0
-                  const lastPrices = getLastPrices()
-                  
-                  // Calculate total credit from all positions
-                  for (const pos of ops) {
-                    const strikeKey = `${pos.index}-${pos.strike}-${pos.type}`
-                    const lastTradingPrice = getLastTradingPrice(user.email, strikeKey)
-                    const current = lastTradingPrice ?? 
-                                  (typeof lastPrices[strikeKey] === 'number' 
-                                    ? lastPrices[strikeKey] 
-                                    : pos.price)
-                    
-                    // Credit = current market price × quantity × lot size
-                    const credit = current * pos.quantity * pos.lotSize
-                    totalCredit += credit
-                  }
-
-                  // Add balance for all closed positions
-                  const balanceResult = await addBalance(totalCredit, "SELL_ALL", "ALL_OPTIONS", ops.length, 0)
-                  if (!balanceResult.success) {
-                    toast({ title: 'Transaction Failed', description: balanceResult.error, variant: 'destructive' })
-                    return
-                  }
-
-                  // Clear all positions
-                  localStorage.setItem(`options_positions_${user.email}`, JSON.stringify([]))
-                  
-                  // Sync to database
-                  await fetch("/api/options/save", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ 
-                      email: user.email,
-                      options: []
-                    }),
-                  }).catch(err => console.warn("Failed to save to database:", err))
-
-                  toast({ 
-                    title: 'All Positions Closed', 
-                    description: `Closed all ${ops.length} position(s) with total credit ₹${totalCredit.toFixed(2)}`, 
-                    variant: 'default' 
-                  })
-                  
-                  setTimeout(() => window.location.reload(), 1000)
-                } catch (err) {
-                  console.error(err)
-                  toast({ title: 'Error', description: 'Failed to close all positions', variant: 'destructive' })
-                }
-              }}
-            >
-              Sell All
-            </Button>
-          </CardHeader>
-          <CardContent>
-            {
-              (() => {
-                const raw = localStorage.getItem(`options_positions_${user.email}`) || '[]'
-                const positions = JSON.parse(raw) as any[]
-                if (!positions || positions.length === 0) {
-                  return (
-                    <div className="text-xs md:text-sm text-muted-foreground">No options history yet.</div>
-                  )
-                }
-
-                return (
-                  <div className="space-y-2 md:space-y-3">
-                    {positions.map((pos) => {
-                      const strikeKey = `${pos.index}-${pos.strike}-${pos.type}`
-                      const lastPrices = getLastPrices()
-                      
-                      // Check if market is open
-                      const marketStatus = isMarketOpen()
-                      
-                      // When market is CLOSED: Use entry price (P&L = 0)
-                      // When market is OPEN: Use latest fetched price from API
-                      let currentPrice = pos.price
-                      
-                      if (marketStatus.isOpen && typeof lastPrices[strikeKey] === 'number') {
-                        // Market is open and we have a live price from API
-                        currentPrice = lastPrices[strikeKey]
-                      } else {
-                        // Market is closed or no live price available
-                        // Use entry price so P&L shows 0
-                        currentPrice = pos.price
-                      }
-                      
-                      // Calculate P&L using the options calculator with action and lotSize
-                      const pnl = calculateOptionsPnL(
-                        pos.price,
-                        currentPrice,
-                        pos.action,
-                        pos.quantity,
-                        pos.lotSize
-                      )
-                      const pnlPercent = calculateOptionsPnLPercent(
-                        pos.price,
-                        currentPrice,
-                        pos.action
-                      )
-
-                      return (
-                        <div key={pos.id} className="flex items-center justify-between p-2 md:p-3 rounded-md md:rounded-lg bg-secondary/50">
-                          <div>
-                            <div className="font-medium text-sm md:text-base">{pos.index} {Number(pos.strike).toLocaleString("en-IN")} {pos.type}</div>
-                            <div className="text-[10px] md:text-xs text-muted-foreground">{pos.action} • {pos.quantity} lot(s) @ ₹{Number(pos.price.toFixed(2)).toLocaleString("en-IN")} = ₹{Number((pos.price * pos.quantity * pos.lotSize).toFixed(2)).toLocaleString("en-IN")}</div>
-                          </div>
-                              <div className="text-right">
-                                <div className={`font-mono font-semibold text-sm md:text-base ${pnl >= 0 ? 'text-primary' : 'text-destructive'}`}>{pnl >= 0 ? '+' : '-'}₹{Number(Math.abs(pnl).toFixed(2)).toLocaleString("en-IN")}</div>
-                                <div className="text-[10px] md:text-xs text-muted-foreground">Entry: ₹{Number(pos.price.toFixed(2)).toLocaleString("en-IN")} • Now: ₹{Number(currentPrice.toFixed(2)).toLocaleString("en-IN")} • {pnlPercent >= 0 ? '+' : '-'}{Math.abs(pnlPercent).toFixed(2)}%</div>
-                              </div>
-                              <div className="ml-2 md:ml-4 flex items-center gap-1 md:gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-xs px-2 md:px-3 h-6 md:h-8"
-                                  onClick={async () => {
-                                    try {
-                                      if (!user) return
-                                      // BUY more lots: create a new BUY position at current price
-                                      const rawOps = localStorage.getItem(`options_positions_${user.email}`) || '[]'
-                                      const ops: any[] = JSON.parse(rawOps)
-
-                                      const qtyStr = window.prompt('How many lots to buy?', '1')
-                                      const qtyBuy = Math.max(0, Number.parseInt(qtyStr || '0') || 0)
-                                      if (!qtyBuy) return
-
-                                      const strikeKey = `${pos.index}-${pos.strike}-${pos.type}`
-                                      const lastTradingPrice = getLastTradingPrice(user.email, strikeKey)
-                                      const lastPrices = getLastPrices()
-                                      
-                                      const current = lastTradingPrice ?? 
-                                                    (typeof lastPrices[strikeKey] === 'number' 
-                                                      ? lastPrices[strikeKey] 
-                                                      : pos.price)
-
-                                      const newPos = {
-                                        id: Math.random().toString(36).substring(7),
-                                        type: pos.type,
-                                        action: 'BUY',
-                                        index: pos.index,
-                                        strike: pos.strike,
-                                        symbol: `${pos.index}-${pos.strike}-${pos.type}`,
-                                        price: current,
-                                        quantity: qtyBuy,
-                                        lotSize: pos.lotSize || 50,
-                                        totalValue: current * qtyBuy * (pos.lotSize || 50),
-                                        timestamp: Date.now(),
-                                      }
-
-                                      const totalCost = newPos.totalValue
-                                      if (totalCost > (user.balance || 0)) {
-                                        toast({ title: 'Insufficient Balance', description: `You need ${formatCurrency(totalCost - (user.balance || 0))} more.`, variant: 'destructive' })
-                                        return
-                                      }
-
-                                      ops.push(newPos)
-                                      localStorage.setItem(`options_positions_${user.email}`, JSON.stringify(ops))
-                                      
-                                      // Save to database
-                                      await fetch("/api/options/save", {
-                                        method: "POST",
-                                        headers: { "Content-Type": "application/json" },
-                                        body: JSON.stringify({ 
-                                          email: user.email,
-                                          options: ops 
-                                        }),
-                                      }).catch(err => console.warn("Failed to save options to database:", err))
-                                      
-                                      // Deduct balance using API
-                                      const balanceResult = await deductBalance(totalCost, "BUY", `${pos.index}-${pos.strike}-${pos.type}`, qtyBuy, current)
-                                      if (!balanceResult.success) {
-                                        toast({ title: 'Transaction Failed', description: balanceResult.error, variant: 'destructive' })
-                                        return
-                                      }
-                                      
-                                      try { setLastPrice(`${pos.index}-${pos.strike}-${pos.type}`, newPos.price) } catch {}
-                                      toast({ title: 'Order Placed', description: `Bought ${qtyBuy} lot(s) of ${pos.index} ${pos.strike} ${pos.type} @ ${formatCurrency(current)}` })
-                                    } catch (err) {
-                                      console.error(err)
-                                    }
-                                  }}
-                                >
-                                  Buy
-                                </Button>
-
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={async () => {
-                                    try {
-                                      if (!user) return
-                                      const rawOps = localStorage.getItem(`options_positions_${user.email}`) || '[]'
-                                      const ops: any[] = JSON.parse(rawOps)
-                                      const position = ops.find((p) => p.id === pos.id)
-                                      if (!position) return
-
-                                      const qtyStr = window.prompt('How many lots to sell/close?', '1')
-                                      const qtySell = Math.max(0, Number.parseInt(qtyStr || '0') || 0)
-                                      if (!qtySell) return
-
-                                      if (qtySell > position.quantity) {
-                                        toast({ title: 'Invalid Quantity', description: `You only have ${position.quantity} lot(s) in this position.`, variant: 'destructive' })
-                                        return
-                                      }
-
-                                      const strikeKey = `${position.index}-${position.strike}-${position.type}`
-                                      const lastTradingPrice = getLastTradingPrice(user.email, strikeKey)
-                                      const lastPrices = getLastPrices()
-                                      
-                                      const current = lastTradingPrice ?? 
-                                                    (typeof lastPrices[strikeKey] === 'number' 
-                                                      ? lastPrices[strikeKey] 
-                                                      : position.price)
-
-                                      // Calculate P&L for the portion being sold (for display only)
-                                      const pnl = calculatePnL(position.price, current, qtySell * position.lotSize)
-
-                                      // Credit = current market price × quantity × lot size
-                                      const credit = current * qtySell * position.lotSize
-
-                                      // Add balance using API
-                                      const balanceResult = await addBalance(credit, "SELL", `${position.index}-${position.strike}-${position.type}`, qtySell, current)
-                                      if (!balanceResult.success) {
-                                        toast({ title: 'Transaction Failed', description: balanceResult.error, variant: 'destructive' })
-                                        return
-                                      }
-                                      
-                                      storeLastTradingPrice(user.email, strikeKey, current)
-                                      try { setLastPrice(strikeKey, current) } catch {}
-
-                                      // Remove position from portfolio
-                                      let updatedOps: any[] = []
-                                      if (qtySell >= position.quantity) {
-                                        // Remove entire position
-                                        updatedOps = ops.filter((p) => p.id !== position.id)
-                                      } else {
-                                        // Reduce quantity
-                                        updatedOps = ops.map((p) => 
-                                          p.id === position.id 
-                                            ? { ...p, quantity: p.quantity - qtySell, totalValue: p.totalValue - (position.price * qtySell * position.lotSize) } 
-                                            : p
-                                        )
-                                      }
-                                      
-                                      localStorage.setItem(`options_positions_${user.email}`, JSON.stringify(updatedOps))
-                                      
-                                      // Sync to database
-                                      await fetch("/api/options/save", {
-                                        method: "POST",
-                                        headers: { "Content-Type": "application/json" },
-                                        body: JSON.stringify({ 
-                                          email: user.email,
-                                          options: updatedOps
-                                        }),
-                                      }).catch(err => console.warn("Failed to save options to database:", err))
-
-                                      toast({ 
-                                        title: qtySell >= position.quantity ? 'Position Closed' : 'Position Partially Closed', 
-                                        description: `Closed ${qtySell} lot(s) of ${position.index} ${position.strike} ${position.type} with ₹${Math.abs(pnl).toFixed(2)} ${pnl >= 0 ? 'profit' : 'loss'}`, 
-                                        variant: pnl >= 0 ? undefined : 'destructive' 
-                                      })
-                                      
-                                      // Refresh the page to update portfolio
-                                      setTimeout(() => window.location.reload(), 1000)
-                                    } catch (err) {
-                                      console.error(err)
-                                      toast({ title: 'Error', description: 'Failed to close position', variant: 'destructive' })
-                                    }
-                                  }}
-                                >
-                                  Sell
-                                </Button>
-                              </div>
-                            </div>
-                      )
-                    })}
-                  </div>
-                )
-              })()
-            }
+                    )
+                  })}
+                </div>
+              )
+            })()}
           </CardContent>
         </Card>
       </main>

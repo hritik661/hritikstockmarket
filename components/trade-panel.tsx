@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
-import { TrendingUp, TrendingDown, Zap } from "lucide-react"
+import { TrendingUp, TrendingDown, Zap, Wallet, ShoppingCart, DollarSign } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface TradePanelProps {
@@ -43,7 +43,6 @@ export function TradePanel({ stock, preselectedOption, initialTab }: TradePanelP
   const { user, updateBalance } = useAuth()
   const { deductBalance, addBalance } = useBalance()
   const { toast } = useToast()
-  // Allow empty input while typing by using string state; convert to number when performing actions
   const [quantity, setQuantity] = useState<string>('1')
   const [tradeType, setTradeType] = useState<"equity" | "options">("equity")
   const [optionType, setOptionType] = useState<"CE" | "PE">("CE")
@@ -53,26 +52,6 @@ export function TradePanel({ stock, preselectedOption, initialTab }: TradePanelP
   const numQuantity = Math.max(0, parseInt(quantity || '0') || 0)
   const totalCost = numQuantity * stock.regularMarketPrice
 
-  // generate a small synthetic chart so trade panel shows same candlestick visuals
-  const generateMiniChart = (base: number, points = 60) => {
-    const data: any[] = []
-    let last = base
-    const now = Math.floor(Date.now() / 1000)
-    for (let i = points - 1; i >= 0; i--) {
-      const t = now - i * 3600
-      const vol = Math.max(1, base * 0.01)
-      const open = Math.max(0.01, last + (Math.random() - 0.5) * vol)
-      const close = Math.max(0.01, open + (Math.random() - 0.5) * vol * 0.6)
-      const high = Math.max(open, close) + Math.random() * vol * 0.5
-      const low = Math.min(open, close) - Math.random() * vol * 0.5
-      const volume = Math.floor(Math.random() * 100000) + 1000
-      data.push({ timestamp: t, open, high, low, close, volume })
-      last = close
-    }
-    return data
-  }
-
-  // Ensure unique email based key for data persistence
   const storageKey = user ? `holdings_${user.email}` : "holdings_guest"
   const transactionsKey = user ? `transactions_${user.email}` : "transactions_guest"
   const holdings: Holding[] = JSON.parse(localStorage.getItem(storageKey) || "[]")
@@ -96,7 +75,6 @@ export function TradePanel({ stock, preselectedOption, initialTab }: TradePanelP
       return
     }
 
-    // Update holdings
     const existingIndex = holdings.findIndex((h: Holding) => h.symbol === stock.symbol)
     if (existingIndex >= 0) {
       const existing = holdings[existingIndex]
@@ -114,7 +92,6 @@ export function TradePanel({ stock, preselectedOption, initialTab }: TradePanelP
 
     localStorage.setItem(storageKey, JSON.stringify(holdings))
 
-    // Save holdings to database
     try {
       await fetch("/api/holdings/save", {
         method: "POST",
@@ -125,7 +102,6 @@ export function TradePanel({ stock, preselectedOption, initialTab }: TradePanelP
       console.warn("Failed to save holdings to database:", error)
     }
 
-    // Deduct balance using API
     const balanceResult = await deductBalance(localTotal, "BUY", stock.symbol, qty, stock.regularMarketPrice)
     if (!balanceResult.success) {
       toast({
@@ -136,7 +112,6 @@ export function TradePanel({ stock, preselectedOption, initialTab }: TradePanelP
       return
     }
 
-    // Record transaction
     const transaction: Transaction = {
       id: Date.now().toString(),
       symbol: stock.symbol,
@@ -151,13 +126,12 @@ export function TradePanel({ stock, preselectedOption, initialTab }: TradePanelP
     localStorage.setItem(transactionsKey, JSON.stringify(transactions))
 
     toast({
-      title: "Order Placed Successfully",
+      title: "Order Executed",
       description: `Bought ${qty} shares of ${stock.symbol.replace(".NS", "")} at ${formatCurrency(stock.regularMarketPrice)}`,
     })
 
     setQuantity('1')
 
-    // notify other UI listeners that a trade completed (used by Predictions popup)
     try {
       window.dispatchEvent(
         new CustomEvent("tradeCompleted", { detail: { symbol: stock.symbol, type: "buy", quantity: qty } }),
@@ -182,46 +156,16 @@ export function TradePanel({ stock, preselectedOption, initialTab }: TradePanelP
       return
     }
 
-    // Update holdings
+    const sellPrice = stock.regularMarketPrice
+    const sellValue = qty * sellPrice
+    const buyPrice = currentHolding.avgPrice
+    const profitLoss = (sellPrice - buyPrice) * qty
+
     const existingIndex = holdings.findIndex((h: Holding) => h.symbol === stock.symbol)
     if (existingIndex >= 0) {
       const newQuantity = holdings[existingIndex].quantity - qty
-      const isSellingAll = newQuantity <= 0
-
-      if (isSellingAll) {
+      if (newQuantity <= 0) {
         holdings.splice(existingIndex, 1)
-
-        // Also sell all options positions for this stock when selling all shares
-        const baseSymbol = stock.symbol.replace(".NS", "")
-        const optionsToSell = holdings.filter(
-          (h: Holding) => h.symbol.includes(baseSymbol) && h.symbol !== stock.symbol,
-        )
-
-        let totalOptionsValue = 0
-        optionsToSell.forEach((option: Holding) => {
-          // Calculate approximate value (this is simplified - in reality options have different pricing)
-          const optionValue = option.quantity * option.avgPrice * 0.1 // Rough estimate
-          totalOptionsValue += optionValue
-
-          // Remove the option holding
-          const optionIndex = holdings.findIndex((h: Holding) => h.symbol === option.symbol)
-          if (optionIndex >= 0) {
-            holdings.splice(optionIndex, 1)
-          }
-        })
-
-        if (optionsToSell.length > 0) {
-          // Add back the option value to balance using API
-          const optionResult = await addBalance(totalOptionsValue, "SELL", stock.symbol, qty, stock.regularMarketPrice)
-          if (!optionResult.success) {
-            toast({
-              title: "Transaction Failed",
-              description: optionResult.error,
-              variant: "destructive",
-            })
-            return
-          }
-        }
       } else {
         holdings[existingIndex].quantity = newQuantity
       }
@@ -229,7 +173,6 @@ export function TradePanel({ stock, preselectedOption, initialTab }: TradePanelP
 
     localStorage.setItem(storageKey, JSON.stringify(holdings))
 
-    // Save holdings to database
     try {
       await fetch("/api/holdings/save", {
         method: "POST",
@@ -240,8 +183,7 @@ export function TradePanel({ stock, preselectedOption, initialTab }: TradePanelP
       console.warn("Failed to save holdings to database:", error)
     }
 
-    // Add balance using API
-    const balanceResult = await addBalance(totalCost, "SELL", stock.symbol, qty, stock.regularMarketPrice)
+    const balanceResult = await addBalance(sellValue, "SELL", stock.symbol, qty, sellPrice)
     if (!balanceResult.success) {
       toast({
         title: "Transaction Failed",
@@ -251,28 +193,27 @@ export function TradePanel({ stock, preselectedOption, initialTab }: TradePanelP
       return
     }
 
-    // Record transaction
     const transaction: Transaction = {
       id: Date.now().toString(),
       symbol: stock.symbol,
       name: stock.shortName,
       type: "sell",
       quantity: qty,
-      price: stock.regularMarketPrice,
-      total: totalCost,
+      price: sellPrice,
+      total: sellValue,
       timestamp: Date.now(),
     }
     transactions.push(transaction)
     localStorage.setItem(transactionsKey, JSON.stringify(transactions))
 
     toast({
-      title: "Order Placed Successfully",
-      description: `Sold ${qty} shares of ${stock.symbol.replace(".NS", "")} at ${formatCurrency(stock.regularMarketPrice)}`,
+      title: "Order Executed",
+      description: `Sold ${qty} shares at ${formatCurrency(sellPrice)}. ${profitLoss >= 0 ? 'Profit' : 'Loss'}: ${formatCurrency(Math.abs(profitLoss))}`,
+      variant: profitLoss >= 0 ? "default" : "destructive",
     })
 
     setQuantity('1')
 
-    // notify other UI listeners that a trade completed (used by Predictions popup)
     try {
       window.dispatchEvent(
         new CustomEvent("tradeCompleted", { detail: { symbol: stock.symbol, type: "sell", quantity: qty } }),
@@ -282,39 +223,32 @@ export function TradePanel({ stock, preselectedOption, initialTab }: TradePanelP
 
   const isLoggedIn = !!user
 
-  // React to externally preselected option (from OptionChain)
-  // Set trade view to options and preselect strike/type when it changes
   useEffect(() => {
     if (!preselectedOption) return
     setTradeType("options")
     setOptionType(preselectedOption.type)
     setSelectedStrike(preselectedOption.strike)
     setActiveTab(preselectedOption.action === "BUY" ? "buy" : "sell")
-    toast({
-      title: "Option Selected",
-      description: `${preselectedOption.action} ${preselectedOption.type} ${stock.symbol.replace(".NS", "")} @ ${preselectedOption.strike}`,
-    })
-  }, [preselectedOption, stock.symbol, toast])
+  }, [preselectedOption])
 
-  // Respect `initialTab` when it changes (e.g., opened from Predictions)
   useEffect(() => {
     if (initialTab) setActiveTab(initialTab)
   }, [initialTab])
 
   if (!isLoggedIn) {
     return (
-      <Card className="border-border">
-        <CardHeader>
-          <CardTitle className="text-lg">Trade {stock.symbol.replace(".NS", "")}</CardTitle>
+      <Card className="border-border/30 overflow-hidden">
+        <CardHeader className="border-b border-border/30 bg-gradient-to-r from-primary/5 to-transparent">
+          <CardTitle className="text-lg">Trade {stock.symbol.replace(".NS", "").replace(".BO", "")}</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="p-6 space-y-4">
           <p className="text-sm text-muted-foreground">Please login to buy or sell stocks.</p>
-          <div className="flex gap-2">
-            <Button asChild className="flex-1">
+          <div className="flex gap-3">
+            <Button asChild className="flex-1 h-11 rounded-xl">
               <Link href="/login">Login</Link>
             </Button>
-            <Button asChild variant="outline" className="flex-1 bg-transparent">
-              <Link href="/signup">Sign Up</Link>
+            <Button asChild variant="outline" className="flex-1 h-11 rounded-xl">
+              <Link href="/login">Sign Up</Link>
             </Button>
           </div>
         </CardContent>
@@ -323,15 +257,15 @@ export function TradePanel({ stock, preselectedOption, initialTab }: TradePanelP
   }
 
   return (
-    <Card id="trade-panel" className="border-border shadow-lg hover:shadow-xl transition-shadow duration-300">
-      <CardHeader className="pb-2 md:pb-3">
+    <Card id="trade-panel" className="border-border/30 overflow-hidden">
+      <CardHeader className="border-b border-border/30 bg-gradient-to-r from-primary/5 to-transparent pb-4">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base md:text-lg">Trade {stock.symbol.replace(".NS", "")}</CardTitle>
+          <CardTitle className="text-lg font-semibold">Trade {stock.symbol.replace(".NS", "").replace(".BO", "")}</CardTitle>
           <div className="flex gap-1 bg-secondary/50 p-1 rounded-lg">
             <Button
               variant={tradeType === "equity" ? "secondary" : "ghost"}
               size="sm"
-              className="h-6 md:h-7 text-xs px-2"
+              className="h-7 text-xs px-3 rounded-md"
               onClick={() => setTradeType("equity")}
             >
               Equity
@@ -339,7 +273,7 @@ export function TradePanel({ stock, preselectedOption, initialTab }: TradePanelP
             <Button
               variant={tradeType === "options" ? "secondary" : "ghost"}
               size="sm"
-              className="h-6 md:h-7 text-xs px-2"
+              className="h-7 text-xs px-3 rounded-md"
               onClick={() => setTradeType("options")}
             >
               Options
@@ -347,43 +281,66 @@ export function TradePanel({ stock, preselectedOption, initialTab }: TradePanelP
           </div>
         </div>
       </CardHeader>
-      <CardContent>
+      
+      <CardContent className="p-4 md:p-6">
         {tradeType === "options" ? (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-3">
               <Button
-                variant={optionType === "CE" ? "default" : "outline"}
-                className={cn("h-12 gap-2", optionType === "CE" && "bg-primary text-primary-foreground")}
+                variant="outline"
+                className={cn(
+                  "h-14 gap-2 rounded-xl transition-all",
+                  optionType === "CE" 
+                    ? "bg-primary/10 border-primary text-primary hover:bg-primary/20" 
+                    : "hover:border-primary/50"
+                )}
                 onClick={() => setOptionType("CE")}
               >
-                <TrendingUp className="h-4 w-4" />
-                Call (CE)
+                <TrendingUp className="h-5 w-5" />
+                <div className="text-left">
+                  <div className="font-semibold">Call (CE)</div>
+                  <div className="text-xs opacity-70">Bullish</div>
+                </div>
               </Button>
               <Button
-                variant={optionType === "PE" ? "default" : "outline"}
-                className={cn("h-12 gap-2", optionType === "PE" && "bg-destructive text-destructive-foreground")}
+                variant="outline"
+                className={cn(
+                  "h-14 gap-2 rounded-xl transition-all",
+                  optionType === "PE" 
+                    ? "bg-destructive/10 border-destructive text-destructive hover:bg-destructive/20" 
+                    : "hover:border-destructive/50"
+                )}
                 onClick={() => setOptionType("PE")}
               >
-                <TrendingDown className="h-4 w-4" />
-                Put (PE)
+                <TrendingDown className="h-5 w-5" />
+                <div className="text-left">
+                  <div className="font-semibold">Put (PE)</div>
+                  <div className="text-xs opacity-70">Bearish</div>
+                </div>
               </Button>
             </div>
 
             <div className="space-y-2">
-              <Label>Strike Price</Label>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Strike Price</Label>
               <div className="grid grid-cols-3 gap-2">
                 {[-1, 0, 1].map((offset) => {
                   const strike = Math.round(stock.regularMarketPrice / 50) * 50 + offset * 50
                   const isSelected = selectedStrike === strike
+                  const isAtm = offset === 0
                   return (
                     <Button
                       key={offset}
                       variant={isSelected ? "default" : "outline"}
                       size="sm"
-                      className={cn("font-mono text-xs", isSelected ? "" : "bg-transparent")}
+                      className={cn(
+                        "font-mono text-sm h-10 rounded-lg relative",
+                        isSelected && "shadow-md",
+                        !isSelected && "hover:border-primary/50"
+                      )}
                       onClick={() => setSelectedStrike(strike)}
                     >
-                      {strike}
+                      {strike.toLocaleString('en-IN')}
+                      {isAtm && <span className="absolute -top-2 right-1 text-[10px] bg-primary text-primary-foreground px-1 rounded">ATM</span>}
                     </Button>
                   )
                 })}
@@ -391,161 +348,183 @@ export function TradePanel({ stock, preselectedOption, initialTab }: TradePanelP
             </div>
 
             <div className="space-y-2">
-              <Label>Lot Size</Label>
-              <Input type="number" defaultValue={50} disabled className="bg-secondary/50 font-mono" />
+              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Lot Size</Label>
+              <Input type="number" defaultValue={50} disabled className="bg-secondary/30 font-mono h-10 rounded-lg" />
             </div>
 
             <Button
-              className="w-full gap-2 bg-gradient-to-r from-primary to-accent border-none h-11"
+              className="w-full h-12 gap-2 rounded-xl bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity font-semibold text-base"
               onClick={async () => {
                 try {
                   const strike = selectedStrike ?? Math.round(stock.regularMarketPrice / 50) * 50
-                  const lotSize = 50 // fixed lot size used in UI
-
-                  // determine premium: prefer preselectedOption.price if provided
+                  const lotSize = 50
                   const premium = preselectedOption?.price ?? Math.max(1, +(stock.regularMarketPrice * 0.02).toFixed(2))
                   const totalCost = premium * lotSize
 
                   if (totalCost > (user?.balance || 0)) {
                     toast({
                       title: "Insufficient Balance",
-                      description: `You need ${formatCurrency(totalCost - (user?.balance || 0))} more to buy this option lot.`,
+                      description: `You need ${formatCurrency(totalCost - (user?.balance || 0))} more.`,
                       variant: "destructive",
                     })
                     return
                   }
 
-                  // persist option holding as a special symbol so portfolio picks it up
                   const optSymbol = `${stock.symbol}-OPT-${optionType}-${strike}`
-                  const storageKey = user ? `holdings_${user.email}` : "holdings_guest"
                   const raw = localStorage.getItem(storageKey) || "[]"
-                  const holdings: any[] = JSON.parse(raw)
-                  const idx = holdings.findIndex((h) => h.symbol === optSymbol)
+                  const holdingsLocal: any[] = JSON.parse(raw)
+                  const idx = holdingsLocal.findIndex((h) => h.symbol === optSymbol)
 
                   if (idx >= 0) {
-                    const existing = holdings[idx]
-                    const newQuantity = existing.quantity + 1 // number of lots
+                    const existing = holdingsLocal[idx]
+                    const newQuantity = existing.quantity + 1
                     const newAvg = (existing.avgPrice * existing.quantity + premium) / newQuantity
-                    holdings[idx] = { ...existing, quantity: newQuantity, avgPrice: newAvg }
+                    holdingsLocal[idx] = { ...existing, quantity: newQuantity, avgPrice: newAvg }
                   } else {
-                    holdings.push({
+                    holdingsLocal.push({
                       symbol: optSymbol,
-                      name: `${stock.shortName} ${optionType} ${strike} (lot)`,
+                      name: `${stock.shortName} ${optionType} ${strike}`,
                       quantity: 1,
                       avgPrice: premium,
                       lotSize,
                     })
                   }
 
-                  localStorage.setItem(storageKey, JSON.stringify(holdings))
-                  // Use API-backed deduction for consistency
-                  try {
-                    const res = await deductBalance(totalCost, "BUY", stock.symbol, 1, premium)
-                    if (!res.success) {
-                      // rollback local change
-                      const rawRollback = localStorage.getItem(storageKey) || "[]"
-                      const holdingsRollback: any[] = JSON.parse(rawRollback).filter((h) => h.symbol !== optSymbol)
-                      localStorage.setItem(storageKey, JSON.stringify(holdingsRollback))
-                      toast({ title: "Transaction Failed", description: res.error, variant: "destructive" })
-                      return
-                    }
-                  } catch (err) {
-                    console.error("option order balance error", err)
+                  localStorage.setItem(storageKey, JSON.stringify(holdingsLocal))
+                  
+                  const res = await deductBalance(totalCost, "BUY", stock.symbol, 1, premium)
+                  if (!res.success) {
+                    const rawRollback = localStorage.getItem(storageKey) || "[]"
+                    const holdingsRollback: any[] = JSON.parse(rawRollback).filter((h: any) => h.symbol !== optSymbol)
+                    localStorage.setItem(storageKey, JSON.stringify(holdingsRollback))
+                    toast({ title: "Transaction Failed", description: res.error, variant: "destructive" })
+                    return
                   }
 
                   toast({
                     title: "Option Order Placed",
-                    description: `${optionType} Option for ${stock.symbol.replace(".NS", "")} @ ${strike} — ${lotSize} qty at ${formatCurrency(premium)} premium`,
+                    description: `${optionType} @ ${strike} - ${lotSize} qty at ${formatCurrency(premium)} premium`,
                   })
                 } catch (err) {
-                  console.error("place option order error", err)
+                  console.error("option order error", err)
                   toast({ title: "Error", description: "Unable to place option order" })
                 }
               }}
             >
-              <Zap className="h-4 w-4" />
+              <Zap className="h-5 w-5" />
               Place Option Order
             </Button>
           </div>
         ) : (
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "buy" | "sell")} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-2 h-12 p-1 bg-secondary/50 rounded-xl">
               <TabsTrigger
                 value="buy"
-                className="data-[state=active]:bg-green-500 data-[state=active]:text-white"
+                className="rounded-lg h-full data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md font-semibold transition-all"
               >
+                <ShoppingCart className="h-4 w-4 mr-2" />
                 Buy
               </TabsTrigger>
               <TabsTrigger
                 value="sell"
-                className="data-[state=active]:bg-destructive data-[state=active]:text-destructive-foreground"
+                className="rounded-lg h-full data-[state=active]:bg-destructive data-[state=active]:text-destructive-foreground data-[state=active]:shadow-md font-semibold transition-all"
               >
+                <DollarSign className="h-4 w-4 mr-2" />
                 Sell
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="buy" className="space-y-4 mt-4">
+            <TabsContent value="buy" className="space-y-4 mt-5">
               <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Quantity</Label>
                 <Input
                   id="buy-quantity"
                   type="text"
-                  placeholder="Enter quantity"
+                  placeholder="Enter number of shares"
                   value={quantity}
                   onChange={(e) => setQuantity(e.target.value.replace(/\D/g, ''))}
+                  className="h-12 text-lg font-mono bg-secondary/30 rounded-xl"
                 />
               </div>
 
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Price per share</span>
-                  <span className="font-mono">{formatCurrency(stock.regularMarketPrice)}</span>
+              <div className="space-y-3 p-4 rounded-xl bg-secondary/20 border border-border/30">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Price per share</span>
+                  <span className="font-mono font-semibold">{formatCurrency(stock.regularMarketPrice)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total Cost</span>
-                  <span className="font-mono font-bold">{formatCurrency(totalCost)}</span>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Total Cost</span>
+                  <span className="font-mono font-bold text-lg">{formatCurrency(totalCost)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Available Balance</span>
-                  <span className="font-mono">{formatCurrency(user.balance)}</span>
+                <div className="flex justify-between items-center pt-2 border-t border-border/30">
+                  <span className="text-sm text-muted-foreground flex items-center gap-1.5">
+                    <Wallet className="h-4 w-4" />
+                    Available Balance
+                  </span>
+                  <span className="font-mono font-semibold text-primary">{formatCurrency(user.balance)}</span>
                 </div>
               </div>
 
-              <Button className="btn-buy w-full gap-2" onClick={handleBuy} disabled={numQuantity < 1 || totalCost > user.balance}>
+              <Button 
+                className="btn-buy w-full h-14 gap-2 text-base font-semibold rounded-xl"
+                onClick={handleBuy} 
+                disabled={numQuantity < 1 || totalCost > user.balance}
+              >
                 <TrendingUp className="h-5 w-5" />
                 Buy {numQuantity} {numQuantity === 1 ? "Share" : "Shares"}
               </Button>
             </TabsContent>
 
-            <TabsContent value="sell" className="space-y-4 mt-4">
+            <TabsContent value="sell" className="space-y-4 mt-5">
               <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Quantity</Label>
                 <Input
                   id="sell-quantity"
                   type="text"
-                  placeholder="Enter quantity"
+                  placeholder="Enter number of shares"
                   value={quantity}
                   onChange={(e) => setQuantity(e.target.value.replace(/\D/g, ''))}
-                  className="bg-secondary"
+                  className="h-12 text-lg font-mono bg-secondary/30 rounded-xl"
                 />
-
               </div>
 
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Your Holdings</span>
-                  <span className="font-mono">{currentHolding?.quantity || 0} shares</span>
+              <div className="space-y-3 p-4 rounded-xl bg-secondary/20 border border-border/30">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Your Holdings</span>
+                  <span className="font-mono font-semibold">{currentHolding?.quantity || 0} shares</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Price per share</span>
-                  <span className="font-mono">{formatCurrency(stock.regularMarketPrice)}</span>
+                {currentHolding && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Avg. Buy Price</span>
+                    <span className="font-mono">{formatCurrency(currentHolding.avgPrice)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Current Price</span>
+                  <span className="font-mono font-semibold">{formatCurrency(stock.regularMarketPrice)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total Value</span>
-                  <span className="font-mono font-bold">{formatCurrency(totalCost)}</span>
+                <div className="flex justify-between items-center pt-2 border-t border-border/30">
+                  <span className="text-sm text-muted-foreground">Total Value</span>
+                  <span className="font-mono font-bold text-lg">{formatCurrency(totalCost)}</span>
                 </div>
+                {currentHolding && numQuantity > 0 && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Est. P&L</span>
+                    <span className={cn(
+                      "font-mono font-semibold",
+                      (stock.regularMarketPrice - currentHolding.avgPrice) * numQuantity >= 0 
+                        ? "text-primary" 
+                        : "text-destructive"
+                    )}>
+                      {(stock.regularMarketPrice - currentHolding.avgPrice) * numQuantity >= 0 ? '+' : ''}
+                      {formatCurrency((stock.regularMarketPrice - currentHolding.avgPrice) * numQuantity)}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <Button
-                className="btn-sell w-full gap-2"
+                className="btn-sell w-full h-14 gap-2 text-base font-semibold rounded-xl"
                 onClick={handleSell}
                 disabled={!currentHolding || currentHolding.quantity < numQuantity || numQuantity < 1}
               >
