@@ -69,8 +69,8 @@ export function Header({ isLandingPage = false }: { isLandingPage?: boolean }) {
 
   return (
     <header className={cn(
-      "sticky top-0 z-40 w-full glass-morphism border-b border-border/20 transition-all duration-300 shadow-lg",
-      isLandingPage && "border-b border-border/10 shadow-xl",
+      "sticky top-0 z-40 w-full bg-background/95 backdrop-blur-md border-b border-border transition-all duration-200",
+      isLandingPage && "border-b border-border/50",
     )}>
       <div className="container mx-auto px-3 md:px-3 py-3 md:py-3">
         <div className="flex items-center gap-2 md:gap-4">

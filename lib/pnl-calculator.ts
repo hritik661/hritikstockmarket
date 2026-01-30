@@ -1,12 +1,19 @@
 import { isMarketOpen } from './market-utils'
 
 /**
- * Enhanced P&L Calculator
+ * Enhanced P&L Calculator (Like Groww/AngelOne)
  * 
- * Handles:
- * 1. Correct P&L calculation: (currentPrice - avgPrice) * quantity
- * 2. Market close scenarios: Uses last trading price until market opens
- * 3. Market open transitions: Uses opening price from next trading day
+ * CORRECT P&L CALCULATION:
+ * 1. Buy stock at avgPrice (entry price)
+ * 2. Current market price changes to currentPrice
+ * 3. Unrealized P&L = (currentPrice - avgPrice) * quantity
+ * 
+ * Example:
+ * - Buy 10 shares at Rs 100 each (invested = Rs 1000)
+ * - Current price goes to Rs 110
+ * - Portfolio Value = 110 * 10 = Rs 1100
+ * - P&L = (110 - 100) * 10 = Rs 100 profit
+ * - When you SELL: Balance increases by Rs 1100 (current value)
  */
 
 export interface PriceData {
@@ -18,18 +25,27 @@ export interface PriceData {
 }
 
 /**
- * Calculate P&L for holdings
- * @param avgPrice - Average buy price
- * @param currentPrice - Current market price (or last trading price if market closed)
- * @param quantity - Number of shares/lots
- * @returns P&L amount (rounded to 2 decimals)
+ * Calculate P&L for stock holdings
+ * @param avgPrice - Average buy price (entry price)
+ * @param currentPrice - Current market price
+ * @param quantity - Number of shares
+ * @returns P&L amount in rupees (rounded to 2 decimals)
  */
 export function calculatePnL(avgPrice: number, currentPrice: number, quantity: number): number {
-  if (isNaN(avgPrice) || isNaN(currentPrice) || isNaN(quantity)) {
+  const safeAvgPrice = Number(avgPrice) || 0
+  const safeCurrentPrice = Number(currentPrice) || 0
+  const safeQuantity = Number(quantity) || 0
+  
+  if (safeAvgPrice <= 0 || safeQuantity <= 0) {
     return 0
   }
-  const pnl = (currentPrice - avgPrice) * quantity
-  // Round to 2 decimal places to avoid floating point errors
+  
+  // If no current price, return 0 P&L (not negative)
+  if (safeCurrentPrice <= 0) {
+    return 0
+  }
+  
+  const pnl = (safeCurrentPrice - safeAvgPrice) * safeQuantity
   return Math.round(pnl * 100) / 100
 }
 
@@ -40,42 +56,42 @@ export function calculatePnL(avgPrice: number, currentPrice: number, quantity: n
  * @returns P&L percentage
  */
 export function calculatePnLPercent(avgPrice: number, currentPrice: number): number {
-  if (isNaN(avgPrice) || avgPrice === 0) {
+  const safeAvgPrice = Number(avgPrice) || 0
+  const safeCurrentPrice = Number(currentPrice) || 0
+  
+  if (safeAvgPrice <= 0 || safeCurrentPrice <= 0) {
     return 0
   }
-  return ((currentPrice - avgPrice) / avgPrice) * 100
+  
+  return ((safeCurrentPrice - safeAvgPrice) / safeAvgPrice) * 100
 }
 
 /**
- * Get effective price for P&L calculation considering market status
+ * Get effective price for P&L calculation
  * 
- * Logic:
- * - If market is OPEN: use currentPrice
- * - If market is CLOSED: use lastTradingPrice (stored from yesterday's close)
- *   This ensures deterministic P&L until market opens
- * - When market opens: it will fetch fresh prices, and if they're different,
- *   the lastTradingPrice will be updated for next close
+ * Priority:
+ * 1. Use current market price if available (live data)
+ * 2. Use last trading price (stored from previous session)
+ * 3. Use fallback/entry price only as last resort
  */
 export function getEffectivePrice(
   currentPrice: number | undefined,
   lastTradingPrice: number | undefined,
   fallbackPrice: number
 ): number {
-  const market = isMarketOpen()
-  
-  // Always use current price if available (live or last trading price)
-  // This shows real P&L even when market is closed
+  // Priority 1: Current market price
   if (typeof currentPrice === 'number' && !isNaN(currentPrice) && currentPrice > 0) {
     return currentPrice
   }
   
-  // Use last trading price if current price not available
+  // Priority 2: Last trading price
   if (typeof lastTradingPrice === 'number' && !isNaN(lastTradingPrice) && lastTradingPrice > 0) {
     return lastTradingPrice
   }
   
-  // Last resort: use fallback (entry price or previous known price)
-  return isNaN(fallbackPrice) || fallbackPrice <= 0 ? 0 : fallbackPrice
+  // Priority 3: Fallback price
+  const safeFallback = Number(fallbackPrice) || 0
+  return safeFallback > 0 ? safeFallback : 0
 }
 
 /**

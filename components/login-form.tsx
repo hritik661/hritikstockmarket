@@ -2,7 +2,7 @@
 
 import React, { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Mail, ArrowRight, Sparkles, AlertCircle, Loader } from "lucide-react"
+import { Mail, ArrowRight, AlertCircle, Loader2, CheckCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -211,123 +211,133 @@ export function LoginForm({ compact, full, compactOnly }: { compact?: boolean; f
     )
   }
 
-  // Main full login form
+  // Main full login form - clean modern design
   return (
-    <Card className={`${cardWidth} login-card-entrance login-backdrop`}>
-      <div className={`grid grid-cols-1 md:grid-cols-2 rounded-xl overflow-hidden shadow-2xl`}>
-        <div className={`hidden md:flex flex-col items-center justify-center p-10 lg:p-14 bg-gradient-to-br from-primary to-emerald-400 text-black gap-6 left-panel-entrance`}>
-          <div className="rounded-xl bg-white p-5 shadow-xl transform-gpu scale-100 left-panel-icon">
-            <Sparkles className="h-10 w-10 text-primary" />
-          </div>
-          <div className="text-center">
-            <h3 className="text-3xl md:text-4xl font-extrabold leading-tight">Welcome to Stocks Market</h3>
-            <p className="mt-3 text-sm opacity-95 max-w-sm mx-auto">Sign in with your Gmail to access your dashboard, portfolio and trades. Virtual ₹10,00,000 on first login.</p>
-          </div>
-          <div className="mt-6 text-sm text-black/85">Trusted by traders • Secure & instant</div>
+    <div className={`${cardWidth}`}>
+      <div className="space-y-6">
+        <div className="space-y-2 text-center lg:text-left">
+          <h2 className="text-2xl md:text-3xl font-bold text-foreground">Welcome back</h2>
+          <p className="text-muted-foreground">Sign in with your email to continue trading</p>
         </div>
 
-        <Card className="m-0 rounded-none md:rounded-r-xl p-4 md:p-8">
-          <CardHeader className="pb-2 px-0">
-            <CardTitle className="text-xl md:text-2xl font-bold">Gmail Sign In</CardTitle>
-            <CardDescription className="text-xs md:text-sm text-muted-foreground">Quick and secure login with OTP</CardDescription>
-          </CardHeader>
+        {otpError && (
+          <div className="flex items-center gap-3 p-4 rounded-lg bg-destructive/10 border border-destructive/20">
+            <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0" />
+            <p className="text-sm text-destructive">{otpError}</p>
+          </div>
+        )}
+        
+        {otpSuccess && (
+          <div className="flex items-center gap-3 p-4 rounded-lg bg-primary/10 border border-primary/20">
+            <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0" />
+            <p className="text-sm text-primary">{otpSuccess}</p>
+          </div>
+        )}
 
-          <CardContent className="space-y-3 md:space-y-6">
-            {otpError && (
-              <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded">
-                <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                <span>{otpError}</span>
+        {otpStep === "email" ? (
+          <form onSubmit={handleSendOTP} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="otp-email" className="text-sm font-medium text-foreground">
+                Email address
+              </Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="otp-email"
+                  type="email"
+                  placeholder="you@gmail.com"
+                  value={otpEmail}
+                  onChange={(e) => setOtpEmail(e.target.value)}
+                  className="pl-11 h-12 text-base bg-secondary/50 border-border focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  disabled={otpLoading}
+                  autoFocus
+                />
               </div>
-            )}
-            {otpSuccess && (
-              <div className="flex items-center gap-2 text-sm text-green-600 bg-green-100 p-3 rounded">
-                <Sparkles className="h-4 w-4 flex-shrink-0" />
-                <span>{otpSuccess}</span>
+            </div>
+
+            <Button 
+              type="submit" 
+              className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-base transition-all" 
+              disabled={otpLoading}
+            >
+              {otpLoading ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                  Sending code...
+                </>
+              ) : (
+                <>
+                  Continue
+                  <ArrowRight className="h-5 w-5 ml-2" />
+                </>
+              )}
+            </Button>
+
+            <p className="text-xs text-muted-foreground text-center">
+              We will send a verification code to your email
+            </p>
+          </form>
+        ) : (
+          <form onSubmit={handleVerifyOTP} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="otp-code" className="text-sm font-medium text-foreground">
+                Verification code
+              </Label>
+              <Input
+                id="otp-code"
+                type="text"
+                inputMode="numeric"
+                placeholder="000000"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                maxLength={6}
+                className="text-center text-2xl tracking-[0.5em] font-mono h-14 bg-secondary/50 border-border focus:border-primary focus:ring-2 focus:ring-primary/20"
+                disabled={otpLoading}
+                autoFocus
+              />
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Sent to {otpEmail}</span>
+                <span>Expires in 5 min</span>
               </div>
-            )}
+            </div>
 
-            {otpStep === "email" ? (
-              <form onSubmit={handleSendOTP} className="space-y-2 md:space-y-4">
-                <div>
-                  <Label htmlFor="otp-email" className="text-xs md:text-sm font-medium">
-                    Email Address
-                  </Label>
-                  <div className="relative mt-1 md:mt-2">
-                    <Mail className="absolute left-3 top-1/2 h-4 w-4 md:h-5 md:w-5 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                    <Input
-                      id="otp-email"
-                      type="email"
-                      placeholder="your@gmail.com"
-                      value={otpEmail}
-                      onChange={(e) => setOtpEmail(e.target.value)}
-                      className="pl-10 md:pl-12 h-9 md:h-12 text-sm md:text-lg"
-                      disabled={otpLoading}
-                      autoFocus
-                    />
-                  </div>
-                </div>
+            <Button 
+              type="submit" 
+              className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-base transition-all" 
+              disabled={otpLoading}
+            >
+              {otpLoading ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                  Verifying...
+                </>
+              ) : (
+                <>
+                  Verify & Sign in
+                  <ArrowRight className="h-5 w-5 ml-2" />
+                </>
+              )}
+            </Button>
 
-                <Button type="submit" className="w-full h-9 md:h-12 bg-gradient-to-r from-primary to-emerald-400 text-white font-semibold text-sm md:text-lg hover:opacity-90" disabled={otpLoading}>
-                  {otpLoading ? (
-                    <>
-                      <Loader className="h-4 w-4 animate-spin mr-2" />
-                      Sending OTP...
-                    </>
-                  ) : (
-                    <>
-                      Send OTP to Email
-                      <ArrowRight className="h-4 w-4 ml-2" />
-                    </>
-                  )}
-                </Button>
+            <Button 
+              type="button" 
+              variant="ghost" 
+              className="w-full h-10 text-muted-foreground hover:text-foreground" 
+              onClick={handleResetOTP} 
+              disabled={otpLoading}
+            >
+              Use a different email
+            </Button>
+          </form>
+        )}
 
-                <p className="text-[10px] md:text-xs text-muted-foreground text-center">We'll send you a 6-digit code.</p>
-              </form>
-            ) : (
-              <form onSubmit={handleVerifyOTP} className="space-y-2 md:space-y-4">
-                <div>
-                  <Label htmlFor="otp-code" className="text-xs md:text-sm font-medium">
-                    Enter OTP Code
-                  </Label>
-                  <Input
-                    id="otp-code"
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="000000"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                    maxLength={6}
-                    className="text-center text-2xl md:text-3xl tracking-widest font-mono h-11 md:h-14 mt-1 md:mt-2"
-                    disabled={otpLoading}
-                    autoFocus
-                  />
-                  <p className="text-[10px] md:text-xs text-muted-foreground mt-1 md:mt-2">Sent to: {otpEmail}</p>
-                  <p className="text-[10px] md:text-xs text-muted-foreground">Code expires in 5 minutes</p>
-                </div>
-
-                <Button type="submit" className="w-full h-9 md:h-12 bg-gradient-to-r from-primary to-emerald-400 text-white font-semibold text-sm md:text-lg hover:opacity-90" disabled={otpLoading}>
-                  {otpLoading ? (
-                    <>
-                      <Loader className="h-4 w-4 animate-spin mr-2" />
-                      Verifying...
-                    </>
-                  ) : (
-                    <>
-                      Verify & Login
-                      <ArrowRight className="h-4 w-4 ml-2" />
-                    </>
-                  )}
-                </Button>
-
-                <Button type="button" variant="outline" className="w-full h-9 md:h-12 bg-transparent text-sm md:text-base" onClick={handleResetOTP} disabled={otpLoading}>
-                  Change Email
-                </Button>
-              </form>
-            )}
-          </CardContent>
-        </Card>
+        <div className="pt-4 border-t border-border">
+          <p className="text-xs text-muted-foreground text-center">
+            New to Hritik Stocks? Get Rs 10,00,000 virtual balance to start practicing
+          </p>
+        </div>
       </div>
-    </Card>
+    </div>
   )
 }
 

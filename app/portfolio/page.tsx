@@ -23,7 +23,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
-import { TrendingUp, TrendingDown, Wallet, PieChart, ArrowUpRight, ArrowDownRight } from "lucide-react"
+import { TrendingUp, TrendingDown, Wallet, PieChart, ArrowUpRight, ArrowDownRight, BarChart3, Activity, DollarSign, Percent } from "lucide-react"
 
 interface Holding {
   symbol: string
@@ -408,85 +408,89 @@ export default function PortfolioPage() {
         <IndicesTicker />
       </div>
 
-      <main className="container mx-auto px-3 py-3 md:px-4 md:py-6">
-        <h1 className="text-lg md:text-2xl font-bold mb-3 md:mb-6">Portfolio Dashboard</h1>
+      <main className="container mx-auto px-4 py-6 md:py-8">
+        {/* Page Header */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 md:mb-8">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground">Portfolio</h1>
+            <p className="text-muted-foreground mt-1">Track your investments and P&L</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Link href="/options">
+              <Button variant="outline" className="h-10 px-4 text-sm">
+                <BarChart3 className="h-4 w-4 mr-2" />
+                Options
+              </Button>
+            </Link>
+            <Link href="/">
+              <Button className="h-10 px-4 text-sm">
+                <TrendingUp className="h-4 w-4 mr-2" />
+                Trade Stocks
+              </Button>
+            </Link>
+          </div>
+        </div>
 
-        {/* Overview Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3 lg:gap-4 mb-3 md:mb-8">
-          <Card className="border-border">
-            <CardContent className="p-2 md:p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] md:text-sm text-muted-foreground">Available Balance</p>
-                  <p className="text-base md:text-2xl font-bold font-mono">{formatCurrency(user.balance)}</p>
-                </div>
-                <div className="h-6 w-6 md:h-10 md:w-10 rounded-full bg-primary/20 flex items-center justify-center">
-                  <Wallet className="h-3 w-3 md:h-5 md:w-5 text-primary" />
-                </div>
+        {/* Overview Cards - Clean Grid */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {/* Available Balance */}
+          <div className="p-5 rounded-xl bg-card border border-border">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Wallet className="h-5 w-5 text-primary" />
               </div>
-            </CardContent>
-          </Card>
+              <span className="text-sm text-muted-foreground">Available Balance</span>
+            </div>
+            <p className="text-2xl md:text-3xl font-bold font-mono text-foreground">{formatCurrency(user.balance)}</p>
+          </div>
 
-          <Card className="border-border">
-            <CardContent className="p-2 md:p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] md:text-sm text-muted-foreground">Portfolio Value</p>
-                  <p className="text-base md:text-2xl font-bold font-mono">{formatCurrency(totalCurrentValue)}</p>
-                </div>
-                <div className="h-6 w-6 md:h-10 md:w-10 rounded-full bg-accent/20 flex items-center justify-center">
-                  <PieChart className="h-3 w-3 md:h-5 md:w-5 text-accent" />
-                </div>
+          {/* Portfolio Value */}
+          <div className="p-5 rounded-xl bg-card border border-border">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center">
+                <PieChart className="h-5 w-5 text-accent" />
               </div>
-            </CardContent>
-          </Card>
+              <span className="text-sm text-muted-foreground">Portfolio Value</span>
+            </div>
+            <p className="text-2xl md:text-3xl font-bold font-mono text-foreground">{formatCurrency(totalCurrentValue)}</p>
+          </div>
 
-          <Card className="border-border">
-            <CardContent className="p-2 md:p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] md:text-sm text-muted-foreground">Total Invested</p>
-                  <p className="text-base md:text-2xl font-bold font-mono">{formatCurrency(totalInvested)}</p>
-                </div>
-                <div className="h-6 w-6 md:h-10 md:w-10 rounded-full bg-secondary flex items-center justify-center">
-                  <ArrowUpRight className="h-3 w-3 md:h-5 md:w-5 text-muted-foreground" />
-                </div>
+          {/* Total Invested */}
+          <div className="p-5 rounded-xl bg-card border border-border">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="h-10 w-10 rounded-lg bg-secondary flex items-center justify-center">
+                <DollarSign className="h-5 w-5 text-muted-foreground" />
               </div>
-            </CardContent>
-          </Card>
+              <span className="text-sm text-muted-foreground">Total Invested</span>
+            </div>
+            <p className="text-2xl md:text-3xl font-bold font-mono text-foreground">{formatCurrency(totalInvested)}</p>
+          </div>
 
-          <Card className="border-border">
-            <CardContent className="p-2 md:p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] md:text-sm text-muted-foreground">Total P&L</p>
-                  <p className={`text-base md:text-2xl font-bold font-mono ${totalPnL >= 0 ? "text-primary" : "text-destructive"}`}>
-                    {totalPnL >= 0 ? "+" : ""}
-                    {formatCurrency(totalPnL)}
-                  </p>
-                  <p className={`text-[10px] md:text-sm ${totalPnL >= 0 ? "text-primary" : "text-destructive"}`}>
-                    {formatPercentage(totalPnLPercent)}
-                  </p>
-                </div>
-                <div
-                  className={`h-6 w-6 md:h-10 md:w-10 rounded-full flex items-center justify-center ${totalPnL >= 0 ? "bg-primary/20" : "bg-destructive/20"}`}
-                >
-                  {totalPnL >= 0 ? (
-                    <TrendingUp className="h-3 w-3 md:h-5 md:w-5 text-primary" />
-                  ) : (
-                    <TrendingDown className="h-3 w-3 md:h-5 md:w-5 text-destructive" />
-                  )}
-                </div>
+          {/* Total P&L */}
+          <div className={`p-5 rounded-xl border ${totalPnL >= 0 ? "bg-primary/5 border-primary/20" : "bg-destructive/5 border-destructive/20"}`}>
+            <div className="flex items-center gap-3 mb-3">
+              <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${totalPnL >= 0 ? "bg-primary/10" : "bg-destructive/10"}`}>
+                {totalPnL >= 0 ? (
+                  <TrendingUp className="h-5 w-5 text-primary" />
+                ) : (
+                  <TrendingDown className="h-5 w-5 text-destructive" />
+                )}
               </div>
-            </CardContent>
-          </Card>
+              <span className="text-sm text-muted-foreground">Total P&L</span>
+            </div>
+            <p className={`text-2xl md:text-3xl font-bold font-mono ${totalPnL >= 0 ? "text-primary" : "text-destructive"}`}>
+              {totalPnL >= 0 ? "+" : ""}{formatCurrency(totalPnL)}
+            </p>
+            <p className={`text-sm mt-1 ${totalPnL >= 0 ? "text-primary" : "text-destructive"}`}>
+              {formatPercentage(totalPnLPercent)}
+            </p>
+          </div>
         </div>
 
         {/* Holdings List */}
-        <Card className="border-border">
-          <CardHeader className="pb-2 md:pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base md:text-lg">Your Holdings</CardTitle>
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-foreground">Stock Holdings</h2>
               {holdings.length > 0 && (
                 <Button
                   variant="destructive"
@@ -829,21 +833,22 @@ export default function PortfolioPage() {
                       const strikeKey = `${pos.index}-${pos.strike}-${pos.type}`
                       const lastPrices = getLastPrices()
                       
-                      // Check if market is open
-                      const marketStatus = isMarketOpen()
+                      // Get the last trading price stored for this position
+                      const lastTradingPrice = getLastTradingPrice(user.email, strikeKey)
+                      const livePriceFromAPI = typeof lastPrices[strikeKey] === 'number' ? lastPrices[strikeKey] : undefined
                       
-                      // When market is CLOSED: Use entry price (P&L = 0)
-                      // When market is OPEN: Use latest fetched price from API
-                      let currentPrice = pos.price
+                      // Use effective price: prioritize live price, then last trading price, then entry price
+                      // This ensures P&L shows correctly even when market is closed
+                      let currentPrice = pos.price // fallback to entry price
                       
-                      if (marketStatus.isOpen && typeof lastPrices[strikeKey] === 'number') {
-                        // Market is open and we have a live price from API
-                        currentPrice = lastPrices[strikeKey]
-                      } else {
-                        // Market is closed or no live price available
-                        // Use entry price so P&L shows 0
-                        currentPrice = pos.price
+                      if (livePriceFromAPI && livePriceFromAPI > 0) {
+                        // We have a live price from API
+                        currentPrice = livePriceFromAPI
+                      } else if (lastTradingPrice && lastTradingPrice > 0) {
+                        // Use stored last trading price
+                        currentPrice = lastTradingPrice
                       }
+                      // If neither available, keep entry price (P&L = 0 for new positions)
                       
                       // Calculate P&L using the options calculator with action and lotSize
                       const pnl = calculateOptionsPnL(

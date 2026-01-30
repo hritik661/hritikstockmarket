@@ -1,7 +1,7 @@
 import { isMarketOpen } from './market-utils'
 
 /**
- * PROPER P&L CALCULATION FOR OPTIONS TRADING
+ * PROPER P&L CALCULATION FOR OPTIONS TRADING (Like Groww/AngelOne)
  * 
  * For Options:
  * - Each lot has a specific lot size (usually 50 or 25 for options)
@@ -10,15 +10,15 @@ import { isMarketOpen } from './market-utils'
  * - When you SELL a call/put at price X and BUY back at price Y:
  *   P&L = (X - Y) * Quantity * Lot Size (profit when Y < X)
  * 
- * Example (as per user requirement):
- * - Buy Call at 70 rupees
- * - Sell at 80 rupees
+ * Example:
+ * - Buy Call at 70 rupees (entry price)
+ * - Current price goes to 80 rupees
  * - Quantity: 1 lot, Lot Size: 50
- * - P&L = (80 - 70) * 1 * 50 = 500 rupees (not 10!)
+ * - Unrealized P&L = (80 - 70) * 1 * 50 = 500 rupees
  * 
- * But if we're calculating P&L per lot/contract:
- * - P&L per contract = 80 - 70 = 10 rupees
- * - Total P&L = 10 * 1 * 50 = 500 rupees
+ * When you SELL/Close the position:
+ * - Your balance increases by: Current Price * Quantity * Lot Size = 80 * 1 * 50 = 4000
+ * - Realized P&L = 500 rupees profit
  */
 
 export interface OptionPosition {
@@ -51,12 +51,18 @@ export function calculateOptionsPnL(
   quantity: number,
   lotSize: number
 ): number {
-  // Validate inputs
-  if (isNaN(entryPrice) || isNaN(currentPrice) || isNaN(quantity) || isNaN(lotSize)) {
+  // Validate inputs - ensure all values are valid numbers
+  const safeEntryPrice = Number(entryPrice) || 0
+  const safeCurrentPrice = Number(currentPrice) || 0
+  const safeQuantity = Number(quantity) || 0
+  const safeLotSize = Number(lotSize) || 1
+  
+  if (safeEntryPrice <= 0 || safeQuantity <= 0 || safeLotSize <= 0) {
     return 0
   }
-
-  if (entryPrice <= 0 || quantity <= 0 || lotSize <= 0) {
+  
+  // If current price is not available or 0, use entry price (no P&L)
+  if (safeCurrentPrice <= 0) {
     return 0
   }
 
@@ -65,11 +71,11 @@ export function calculateOptionsPnL(
   if (action === "BUY") {
     // For BUY position: profit when currentPrice > entryPrice
     // P&L = (currentPrice - entryPrice) * quantity * lotSize
-    pnl = (currentPrice - entryPrice) * quantity * lotSize
+    pnl = (safeCurrentPrice - safeEntryPrice) * safeQuantity * safeLotSize
   } else {
     // For SELL position: profit when currentPrice < entryPrice
     // P&L = (entryPrice - currentPrice) * quantity * lotSize
-    pnl = (entryPrice - currentPrice) * quantity * lotSize
+    pnl = (safeEntryPrice - safeCurrentPrice) * safeQuantity * safeLotSize
   }
 
   return Math.round(pnl * 100) / 100
@@ -130,33 +136,30 @@ export function calculateAveragePrice(
 
 /**
  * Get effective price for P&L calculation considering market status
+ * 
+ * IMPORTANT: This function ensures P&L is calculated correctly:
+ * - When market is OPEN: Use live current price from API
+ * - When market is CLOSED: Use last trading price (stored during market hours)
+ * - Never use entry price as fallback for P&L (that would show 0 P&L incorrectly)
  */
 export function getEffectivePrice(
   currentPrice: number | undefined,
   lastTradingPrice: number | undefined,
   fallbackPrice: number
 ): number {
-  const market = isMarketOpen()
-
-  // Market is open - use live current price
-  if (market.isOpen) {
-    if (typeof currentPrice === "number" && !isNaN(currentPrice) && currentPrice > 0) {
-      return currentPrice
-    }
-  }
-
-  // Market is closed - use last trading price (more stable)
-  if (typeof lastTradingPrice === "number" && !isNaN(lastTradingPrice) && lastTradingPrice > 0) {
-    return lastTradingPrice
-  }
-
-  // Fallback to current price if available
+  // Priority 1: Use current price if valid (works for both market open/closed)
   if (typeof currentPrice === "number" && !isNaN(currentPrice) && currentPrice > 0) {
     return currentPrice
   }
 
-  // Last resort: use fallback (entry price or previous known price)
-  return isNaN(fallbackPrice) || fallbackPrice <= 0 ? 0 : fallbackPrice
+  // Priority 2: Use last trading price (stored from previous market session)
+  if (typeof lastTradingPrice === "number" && !isNaN(lastTradingPrice) && lastTradingPrice > 0) {
+    return lastTradingPrice
+  }
+
+  // Priority 3: Use fallback price (entry price) - only if no other data available
+  const safeFallback = Number(fallbackPrice) || 0
+  return safeFallback > 0 ? safeFallback : 0
 }
 
 /**

@@ -365,30 +365,29 @@ export default function OptionsPage() {
         <IndicesTicker />
       </div>
 
-      <main className="container mx-auto px-3 py-3 md:px-4 md:py-6">
+      <main className="container mx-auto px-4 py-6 md:py-8">
+        {/* Error Banner */}
         {error && (
-          <Card className="mb-4 md:mb-6 border-destructive/50 bg-destructive/10">
-            <CardContent className="p-3 md:p-4">
-              <p className="text-destructive text-sm">{error}</p>
-              <Button size="sm" variant="outline" onClick={() => setError(null)} className="mt-2 text-xs">
-                Dismiss
-              </Button>
-            </CardContent>
-          </Card>
+          <div className="mb-6 p-4 rounded-xl bg-destructive/10 border border-destructive/20 flex items-center justify-between">
+            <p className="text-destructive text-sm">{error}</p>
+            <Button size="sm" variant="ghost" onClick={() => setError(null)} className="text-destructive hover:bg-destructive/20">
+              Dismiss
+            </Button>
+          </div>
         )}
 
-      
-
-        <div className="flex items-center gap-1.5 md:gap-3 mb-3 md:mb-6">
-          <div className="h-6 w-6 md:h-8 md:w-8 rounded-full bg-primary/20 flex items-center justify-center">
-            <Zap className="h-3 w-3 md:h-4 md:w-4 text-primary" />
-          </div>
-          <div className="flex-1">
-            <h1 className="text-lg md:text-xl font-bold">Options Trading</h1>
-            <p className="text-muted-foreground text-xs md:text-sm">Trade NIFTY, BANKNIFTY & SENSEX Options</p>
+        {/* Page Header */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+          <div className="flex items-center gap-4">
+            <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Zap className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold text-foreground">Options Trading</h1>
+              <p className="text-muted-foreground mt-1">Trade NIFTY, BANKNIFTY & SENSEX Options</p>
+            </div>
           </div>
           <Button
-            size="sm"
             variant="outline"
             onClick={() => {
               setPricesLoading(true)
@@ -421,48 +420,53 @@ export default function OptionsPage() {
               }
               fetchPrices()
             }}
-            className="gap-2"
+            className="h-10 px-4 gap-2"
             disabled={pricesLoading}
           >
             <RefreshCw className={cn("h-4 w-4", pricesLoading && "animate-spin")} />
-            <span className="hidden sm:inline text-xs">Refresh</span>
+            Refresh Prices
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-3 lg:gap-4 mb-3 md:mb-6">
+        {/* Index Selection Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
           {INDIAN_INDICES.map((index) => (
-            <Card
+            <button
               key={index.symbol}
               onClick={() => setSelectedIndex(index)}
               className={cn(
-                "cursor-pointer transition-all",
-                selectedIndex.symbol === index.symbol ? "border-primary bg-primary/5" : "hover:border-primary/50",
+                "p-5 rounded-xl border text-left transition-all",
+                selectedIndex.symbol === index.symbol 
+                  ? "border-primary bg-primary/5 ring-2 ring-primary/20" 
+                  : "border-border bg-card hover:border-primary/30",
               )}
             >
-              <CardContent className="p-3 md:p-4">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <p className="text-xs md:text-sm text-muted-foreground">{index.name}</p>
-                    <p className="text-lg md:text-2xl font-bold font-mono">₹{index.price.toLocaleString("en-IN")}</p>
-                  </div>
-                  <Badge variant={selectedIndex.symbol === index.symbol ? "default" : "secondary"} className="text-xs">
-                    Lot: {index.lotSize}
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
+              <div className="flex justify-between items-start mb-3">
+                <span className="text-sm text-muted-foreground">{index.name}</span>
+                <Badge variant={selectedIndex.symbol === index.symbol ? "default" : "secondary"} className="text-xs">
+                  Lot: {index.lotSize}
+                </Badge>
+              </div>
+              <p className="text-2xl md:text-3xl font-bold font-mono text-foreground">
+                Rs {index.price.toLocaleString("en-IN")}
+              </p>
+            </button>
           ))}
         </div>
 
         {/* My Positions */}
         {positions.length > 0 && (
-          <Card className="mb-4 md:mb-6">
-            <CardHeader className="pb-2 md:pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base md:text-lg flex items-center gap-2">
-                  <ShoppingCart className="h-4 w-4 md:h-5 md:w-5" />
-                  My Positions ({positions.length})
-                </CardTitle>
+          <div className="mb-8 rounded-xl border border-border bg-card overflow-hidden">
+            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center">
+                  <ShoppingCart className="h-5 w-5 text-accent" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">Open Positions</h2>
+                  <p className="text-sm text-muted-foreground">{positions.length} active position{positions.length !== 1 ? 's' : ''}</p>
+                </div>
+              </div>
                 <Button
                   size="sm"
                   variant="destructive"

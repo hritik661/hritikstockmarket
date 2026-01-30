@@ -4,31 +4,37 @@ import dynamic from "next/dynamic"
 import { Header } from "@/components/header"
 import { MarketStatus } from "@/components/market-status"
 import { useAuth } from "@/contexts/auth-context"
-import { useEffect, Suspense } from "react"
+import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import AboutPage from "@/app/about/page"
+import { Wallet, TrendingUp, BarChart3, Briefcase } from "lucide-react"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { formatCurrency } from "@/lib/market-utils"
 
-// Ultra-fast loading: Suspense boundaries with minimal loading states
+// Dynamic imports with loading states
 const StockList = dynamic(() => import("@/components/stock-list").then(mod => ({ default: mod.StockList })), {
-  loading: () => <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-2.5 p-4">
-    {[...Array(4)].map((_, i) => (
-      <div key={i} className="h-16 md:h-18 bg-secondary/50 rounded-xl animate-pulse" />
-    ))}
-  </div>,
+  loading: () => (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4">
+      {[...Array(8)].map((_, i) => (
+        <div key={i} className="h-20 bg-secondary/30 rounded-xl animate-pulse" />
+      ))}
+    </div>
+  ),
   ssr: true
 })
 
 const NewsSection = dynamic(() => import("@/components/news-section").then(mod => ({ default: mod.NewsSection })), {
-  loading: () => null, // No visible loading for news (non-critical)
-  ssr: false // Load in background
+  loading: () => <div className="h-40 bg-secondary/30 rounded-xl animate-pulse" />,
+  ssr: false
 })
 
 const GainersLosers = dynamic(() => import("@/components/gainers-losers").then(mod => ({ default: mod.GainersLosers })), {
-  loading: () => <div className="h-24 bg-secondary/50 rounded-xl animate-pulse" />
+  loading: () => <div className="h-32 bg-secondary/30 rounded-xl animate-pulse" />
 })
 
 const FiftyTwoWeekView = dynamic(() => import("@/components/52-week-view").then(mod => ({ default: mod.FiftyTwoWeekView })), {
-  loading: () => <div className="h-24 bg-secondary/50 rounded-xl animate-pulse" />
+  loading: () => <div className="h-32 bg-secondary/30 rounded-xl animate-pulse" />
 })
 
 export default function HomePage() {
@@ -36,7 +42,6 @@ export default function HomePage() {
   const router = useRouter()
 
   useEffect(() => {
-    // Preload common stocks for instant access
     if (user) {
       import("@/lib/cache-utils").then(({ preloadCommonStocks }) => {
         preloadCommonStocks()
@@ -47,7 +52,7 @@ export default function HomePage() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="h-10 w-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+        <div className="h-10 w-10 border-3 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
@@ -60,68 +65,93 @@ export default function HomePage() {
     <div className="min-h-screen bg-background">
       <Header />
 
-      <main className="container mx-auto px-3 py-4 md:px-3 md:py-6">
-        <div className="flex flex-col lg:flex-row gap-4 md:gap-6">
-          {/* Main Content */}
-          <div className="flex-1 space-y-4 md:space-y-6">
-            {/* Header Section with animated gradient */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-2 md:gap-3 animate-slide-in-up">
-              <div className="space-y-1 md:space-y-1.5">
-                <h1 className="text-xl md:text-xl lg:text-3xl font-black tracking-tighter text-gradient">
-                  Market Dashboard
-                </h1>
-                <p className="text-muted-foreground text-sm md:text-sm font-medium">
-                  Managing <span className="text-primary font-bold">₹{user.balance.toLocaleString("en-IN")}</span> • Ready to trade
-                </p>
-              </div>
-              <div className="flex items-center gap-2 md:gap-2 glass-morphism px-3 md:px-4 py-2 md:py-2.5 rounded-xl animate-scale-bounce">
-                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Market</span>
-                <MarketStatus />
-              </div>
+      <main className="container mx-auto px-4 py-6 md:py-8">
+        {/* Dashboard Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground">
+              Welcome back, {user.name?.split(' ')[0] || 'Trader'}
+            </h1>
+            <p className="text-muted-foreground mt-1">Here is your market overview for today</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/10 border border-primary/20">
+              <Wallet className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium text-foreground">Balance:</span>
+              <span className="text-base font-bold font-mono text-primary">{formatCurrency(user.balance)}</span>
             </div>
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-secondary border border-border">
+              <span className="text-xs font-medium text-muted-foreground uppercase">Market</span>
+              <MarketStatus />
+            </div>
+          </div>
+        </div>
 
-            {/* Stock List Card with premium styling */}
-            <div
-              className="rounded-2xl md:rounded-3xl border border-primary/20 bg-gradient-to-br from-card/60 to-card/20 overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300"
-              style={{ animationDelay: "0.2s" }}
-            >
-              <div className="bg-gradient-to-r from-primary/5 to-accent/5 px-4 md:px-5 py-4 md:py-4 border-b border-border/10">
+        {/* Quick Actions */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <Link href="/portfolio" className="p-4 rounded-xl bg-card border border-border hover:border-primary/30 transition-colors group">
+            <div className="h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center mb-3">
+              <Briefcase className="h-5 w-5 text-blue-500" />
+            </div>
+            <p className="font-semibold text-foreground group-hover:text-primary transition-colors">Portfolio</p>
+            <p className="text-sm text-muted-foreground">View holdings</p>
+          </Link>
+          
+          <Link href="/options" className="p-4 rounded-xl bg-card border border-border hover:border-primary/30 transition-colors group">
+            <div className="h-10 w-10 rounded-lg bg-cyan-500/10 flex items-center justify-center mb-3">
+              <BarChart3 className="h-5 w-5 text-cyan-500" />
+            </div>
+            <p className="font-semibold text-foreground group-hover:text-primary transition-colors">Options</p>
+            <p className="text-sm text-muted-foreground">Trade F&O</p>
+          </Link>
+          
+          <Link href="/predictions" className="p-4 rounded-xl bg-card border border-border hover:border-primary/30 transition-colors group">
+            <div className="h-10 w-10 rounded-lg bg-purple-500/10 flex items-center justify-center mb-3">
+              <TrendingUp className="h-5 w-5 text-purple-500" />
+            </div>
+            <p className="font-semibold text-foreground group-hover:text-primary transition-colors">Predictions</p>
+            <p className="text-sm text-muted-foreground">AI forecasts</p>
+          </Link>
+          
+          <Link href="/about" className="p-4 rounded-xl bg-card border border-border hover:border-primary/30 transition-colors group">
+            <div className="h-10 w-10 rounded-lg bg-green-500/10 flex items-center justify-center mb-3">
+              <Wallet className="h-5 w-5 text-green-500" />
+            </div>
+            <p className="font-semibold text-foreground group-hover:text-primary transition-colors">About</p>
+            <p className="text-sm text-muted-foreground">Learn more</p>
+          </Link>
+        </div>
+
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Main Content */}
+          <div className="flex-1 space-y-6">
+            {/* Stock List */}
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              <div className="px-5 py-4 border-b border-border">
+                <h2 className="text-lg font-semibold text-foreground">Popular Stocks</h2>
+                <p className="text-sm text-muted-foreground">Click on any stock to trade</p>
               </div>
               <StockList />
             </div>
 
             {/* Gainers & Losers */}
-            <div
-              style={{ animationDelay: "0.3s" }}
-            >
-              <GainersLosers />
-            </div>
+            <GainersLosers />
 
             {/* 52-Week Highs */}
-            <div
-              style={{ animationDelay: "0.4s" }}
-            >
-              <FiftyTwoWeekView type="near-high" title="52-Week Highs" description="Stocks near their 52-week highs" limit={20} />
-            </div>
+            <FiftyTwoWeekView type="near-high" title="52-Week Highs" description="Stocks near their 52-week highs" limit={20} />
 
             {/* 52-Week Lows */}
-            <div
-              style={{ animationDelay: "0.5s" }}
-            >
-              <FiftyTwoWeekView type="near-low" title="52-Week Lows" description="Stocks near their 52-week lows" limit={10} />
-            </div>
+            <FiftyTwoWeekView type="near-low" title="52-Week Lows" description="Stocks near their 52-week lows" limit={10} />
           </div>
 
           {/* Sidebar with News */}
-          <div className="w-full lg:w-80 space-y-4 md:space-y-6">
-            <div style={{ animationDelay: "0.6s" }}>
-              <div className="rounded-2xl md:rounded-3xl border border-border/20 bg-gradient-to-br from-card/60 to-card/20 overflow-hidden shadow-lg">
-                <div className="bg-gradient-to-r from-accent/5 to-primary/5 px-4 md:px-5 py-4 md:py-4 border-b border-border/10">
-                  <h2 className="text-lg md:text-lg font-bold text-foreground">Market News</h2>
-                </div>
-                <div className="p-4 md:p-5">
-                  <NewsSection limit={10} />
-                </div>
+          <div className="w-full lg:w-80">
+            <div className="rounded-xl border border-border bg-card overflow-hidden sticky top-20">
+              <div className="px-5 py-4 border-b border-border">
+                <h2 className="text-lg font-semibold text-foreground">Market News</h2>
+              </div>
+              <div className="p-4">
+                <NewsSection limit={10} />
               </div>
             </div>
           </div>
