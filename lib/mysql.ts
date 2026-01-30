@@ -1,18 +1,36 @@
-import mysql from "mysql2/promise"
+import { Pool, neonConfig } from "@neondatabase/serverless"
+import ws from "ws"
 
-let pool: mysql.Pool | null = null
+// Enable WebSocket for serverless environments
+neonConfig.webSocketConstructor = ws
 
-export function getPool() {
+let pool: Pool | null = null
+
+export function getPool(): Pool {
   if (pool) return pool
-  const url = process.env.MYSQL_URL || process.env.DATABASE_URL
-  if (!url) throw new Error("MYSQL_URL is not set in environment")
+  
+  const connectionString = process.env.DATABASE_URL
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is not set in environment")
+  }
 
-  pool = mysql.createPool(url)
+  pool = new Pool({ connectionString })
   return pool
 }
 
-export async function query(sql: string, params: any[] = []) {
+export async function query(sql: string, params: any[] = []): Promise<any> {
   const p = getPool()
-  const [rows] = await p.query(sql, params)
-  return rows
+  const result = await p.query(sql, params)
+  return result.rows
+}
+
+export async function queryOne(sql: string, params: any[] = []): Promise<any | null> {
+  const rows = await query(sql, params)
+  return rows[0] || null
+}
+
+export async function execute(sql: string, params: any[] = []): Promise<{ rowCount: number }> {
+  const p = getPool()
+  const result = await p.query(sql, params)
+  return { rowCount: result.rowCount || 0 }
 }

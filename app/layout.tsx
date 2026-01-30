@@ -13,9 +13,22 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" })
 
 export const metadata: Metadata = {
-  title: "Hrtik Stock Market Application - Indian Stock Trading Platform",
-  description: "Trade Indian stocks with real-time data, advanced charts, predictions, and portfolio management",
+  title: "Hritik Stocks - Premium Indian Stock Trading Platform",
+  description: "Trade Indian NSE stocks with real-time data, professional charts, AI-powered predictions, options trading, and portfolio management. Start with Rs. 10 Lakh virtual balance.",
+  keywords: ["stock trading", "NSE", "Indian stocks", "paper trading", "virtual trading", "stock market", "options trading", "AI predictions"],
+  authors: [{ name: "Hritik Stocks" }],
   generator: "v0.app",
+  openGraph: {
+    title: "Hritik Stocks - Premium Indian Stock Trading Platform",
+    description: "Trade Indian NSE stocks with real-time data and AI-powered predictions",
+    type: "website",
+    locale: "en_IN",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Hritik Stocks - Premium Indian Stock Trading Platform",
+    description: "Trade Indian NSE stocks with real-time data and AI-powered predictions",
+  },
   icons: {
     icon: [
       {
