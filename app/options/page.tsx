@@ -537,9 +537,8 @@ export default function OptionsPage() {
                 >
                   Sell All
                 </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
+            </div>
+            <div className="p-0">
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -790,8 +789,8 @@ export default function OptionsPage() {
                   </TableBody>
                 </Table>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         )}
 
         {/* Option Chain */}
