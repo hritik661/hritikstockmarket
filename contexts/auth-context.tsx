@@ -33,104 +33,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter()
 
   useEffect(() => {
-    const initializeAuth = () => {
-      const sessionToken = localStorage.getItem("hrtik_stocks_session_token")
-      if (sessionToken) {
-        // In a real app, validate session token with backend
-        const storedUser = localStorage.getItem("hrtik_stocks_user")
-        if (storedUser) {
-          try {
-            setUser(JSON.parse(storedUser))
-          } catch {
-            localStorage.removeItem("hrtik_stocks_user")
-          }
+    // Initialize by asking the server who the current session belongs to.
+    const initializeAuth = async () => {
+      try {
+        const res = await fetch("/api/auth/me", { method: "GET" })
+        if (res.ok) {
+          const data = await res.json()
+          if (data?.user) setUser(data.user)
         }
+      } catch (err) {
+        // ignore
+      } finally {
+        setIsLoading(false)
       }
-      setIsLoading(false)
     }
     initializeAuth()
 
-    // Listen for storage changes (logout/login in other tabs) and update state
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === "hrtik_stocks_user") {
-        if (e.newValue) {
-          try {
-            setUser(JSON.parse(e.newValue))
-          } catch {
-            setUser(null)
-          }
-        } else {
-          setUser(null)
-        }
-      }
-      if (e.key === "hrtik_stocks_session_token" && !e.newValue) {
-        setUser(null)
-      }
-    }
-
-    if (typeof window !== "undefined") {
-      window.addEventListener("storage", handleStorage)
-    }
-
-    return () => {
-      if (typeof window !== "undefined") {
-        window.removeEventListener("storage", handleStorage)
-      }
-    }
+    // No localStorage-based session handling; rely on server HttpOnly cookie instead.
+    return () => {}
   }, [])
 
-  // Simple local-only auth store using localStorage. Not secure for production.
-  const USERS_KEY = "hrtik_stocks_users"
-
-  const hashPassword = async (password: string) => {
-    if (typeof window === "undefined" || !password) return ""
-    const enc = new TextEncoder()
-    const data = enc.encode(password)
-    const hashBuffer = await crypto.subtle.digest("SHA-256", data)
-    const hashArray = Array.from(new Uint8Array(hashBuffer))
-    return hashArray.map(b => b.toString(16).padStart(2, "0")).join("")
-  }
-
-  const readUsers = (): Record<string, any> => {
-    try {
-      const raw = localStorage.getItem(USERS_KEY)
-      if (!raw) return {}
-      return JSON.parse(raw)
-    } catch {
-      return {}
-    }
-  }
-
-  const writeUsers = (u: Record<string, any>) => {
-    try {
-      localStorage.setItem(USERS_KEY, JSON.stringify(u))
-    } catch {}
-  }
-
+  // Server-backed signup/login flows. No localStorage session tokens.
   const signup = async (email: string, name: string | undefined, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
       if (!email || !password) return { success: false, error: "Email and password are required" }
-      const users = readUsers()
-      const key = email.toLowerCase()
-      if (users[key]) return { success: false, error: "Account already exists for this email" }
-
-      const passwordHash = await hashPassword(password)
-      const newUser = {
-        id: `${Date.now()}`,
-        email: key,
-        name: name || "",
-        passwordHash,
-        balance: 1000000,
-        isPredictionPaid: false,
-      }
-      users[key] = newUser
-      writeUsers(users)
-
-      // create session
-      localStorage.setItem("hrtik_stocks_session_token", `local:${key}:${Date.now()}`)
-      localStorage.setItem("hrtik_stocks_user", JSON.stringify({ id: newUser.id, email: newUser.email, name: newUser.name, balance: newUser.balance, isPredictionPaid: newUser.isPredictionPaid }))
-      setUser({ id: newUser.id, email: newUser.email, name: newUser.name, balance: newUser.balance, isPredictionPaid: newUser.isPredictionPaid })
-
+      const res = await fetch("/api/auth/signup-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.toLowerCase(), name, password }),
+      })
+      const data = await res.json()
+      if (!res.ok) return { success: false, error: data?.error || "Signup failed" }
+      if (data.user) setUser(data.user)
       return { success: true }
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : "Signup failed" }
@@ -140,22 +74,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
       if (!email || !password) return { success: false, error: "Email and password are required" }
-      const users = readUsers()
-      const key = email.toLowerCase()
-      const found = users[key]
-      if (!found) return { success: false, error: "No account found for this email" }
-      const passwordHash = await hashPassword(password)
-      if (passwordHash !== found.passwordHash) return { success: false, error: "Invalid credentials" }
-
-      const userData = { id: found.id, email: found.email, name: found.name, balance: typeof found.balance === 'number' ? found.balance : 1000000, isPredictionPaid: !!found.isPredictionPaid }
-      const sessionToken = `local:${key}:${Date.now()}`
-      localStorage.setItem("hrtik_stocks_session_token", sessionToken)
-      localStorage.setItem("hrtik_stocks_user", JSON.stringify(userData))
-      
-      // Set session token as cookie for API access
-      document.cookie = `session_token=${sessionToken}; path=/; max-age=86400; samesite=strict`
-      
-      setUser(userData)
+      const res = await fetch("/api/auth/login-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.toLowerCase(), password }),
+      })
+      const data = await res.json()
+      if (!res.ok) return { success: false, error: data?.error || "Login failed" }
+      if (data.user) setUser(data.user)
       return { success: true }
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : "Login failed" }
@@ -165,52 +91,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   
 
   const logout = () => {
-    // Remove session and user first, then update in-memory state and navigate.
-    try {
-      if (typeof window !== "undefined") {
-        // clear session keys
-        const storedUserRaw = localStorage.getItem("hrtik_stocks_user")
-        let userEmail: string | null = null
-        try {
-          if (storedUserRaw) {
-            const parsed = JSON.parse(storedUserRaw)
-            userEmail = parsed?.email || null
-          }
-        } catch {}
-
-        localStorage.removeItem("hrtik_stocks_session_token")
-        localStorage.removeItem("hrtik_stocks_user")
-        
-        // Clear session cookie
-        document.cookie = "session_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
-
-        // DO NOT remove user-specific persisted data on logout.
-        // Keeping `holdings_{email}`, `options_positions_{email}`, and `last_prices_{email}`
-        // preserves user portfolio and history across logins.
-
-        // write a small signout flag to trigger storage events in other tabs
-        try {
-          localStorage.setItem("hrtik_stocks_signed_out", Date.now().toString())
-        } catch {}
-      }
-    } catch {}
-
-    setUser(null)
-
-    // Navigate to home and attempt a refresh; swallow any errors to avoid crashing UI on logout.
-    try {
-      router.push("/")
-    } catch {}
-    try {
-      router.refresh()
-    } catch {}
-    // Force a full reload to ensure any cached state is cleared and user sees the landing page.
-    try {
-      if (typeof window !== "undefined") {
-        // replace to avoid keeping history entry
-        window.location.replace("/")
-      }
-    } catch {}
+    ;(async () => {
+      try {
+        await fetch("/api/auth/logout", { method: "POST" })
+      } catch {}
+      setUser(null)
+      try {
+        router.push("/")
+      } catch {}
+      try {
+        router.refresh()
+      } catch {}
+      try {
+        if (typeof window !== "undefined") window.location.replace("/")
+      } catch {}
+    })()
   }
 
   const updateBalance = async (amount: number) => {
@@ -218,22 +113,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const newBalance = user.balance + amount
       const updatedUser = { ...user, balance: newBalance }
       setUser(updatedUser)
-      localStorage.setItem("hrtik_stocks_user", JSON.stringify(updatedUser))
-      try {
-        const users = readUsers()
-        const key = updatedUser.email.toLowerCase()
-        if (!users[key]) {
-          users[key] = {
-            id: updatedUser.id,
-            email: updatedUser.email,
-            name: updatedUser.name,
-            balance: 1000000,
-            isPredictionPaid: updatedUser.isPredictionPaid,
-          }
-        }
-        users[key].balance = updatedUser.balance
-        writeUsers(users)
-      } catch {}
 
       // Update balance in database
       try {
@@ -249,19 +128,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const markPredictionsAsPaid = () => {
-    if (user) {
-      const updatedUser = { ...user, isPredictionPaid: true }
-      setUser(updatedUser)
-      localStorage.setItem("hrtik_stocks_user", JSON.stringify(updatedUser))
+    // Refresh user from server - payment handlers should update DB, so re-fetch the session user
+    ;(async () => {
       try {
-        const users = readUsers()
-        const key = updatedUser.email.toLowerCase()
-        if (users[key]) {
-          users[key].isPredictionPaid = true
-          writeUsers(users)
+        const res = await fetch("/api/auth/me", { method: "GET" })
+        if (res.ok) {
+          const data = await res.json()
+          if (data?.user) setUser(data.user)
         }
-      } catch {}
-    }
+      } catch (err) {
+        // ignore
+      }
+    })()
   }
 
   const loginWithOTP = async (email: string, otp: string): Promise<{ success: boolean; error?: string; isNewUser?: boolean }> => {
@@ -290,26 +168,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isPredictionPaid: data.user.isPredictionPaid || false,
       }
 
+      // Server sets HttpOnly cookie. Just set user state from response.
       setUser(userData)
-      localStorage.setItem("hrtik_stocks_session_token", data.sessionToken)
-      localStorage.setItem("hrtik_stocks_user", JSON.stringify(userData))
-      
-      // Set session token as cookie for API access
-      document.cookie = `session_token=${data.sessionToken}; path=/; max-age=86400; samesite=strict`
-
-      // Update persistent users storage
-      try {
-        const users = readUsers()
-        const key = userData.email.toLowerCase()
-        users[key] = {
-          id: userData.id,
-          email: userData.email,
-          name: userData.name,
-          balance: userData.balance,
-          isPredictionPaid: userData.isPredictionPaid,
-        }
-        writeUsers(users)
-      } catch {}
 
       return { success: true, isNewUser: data.isNewUser }
     } catch (err) {
@@ -333,7 +193,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (dbBalance !== user.balance) {
           const updatedUser = { ...user, balance: dbBalance }
           setUser(updatedUser)
-          localStorage.setItem("hrtik_stocks_user", JSON.stringify(updatedUser))
         }
       }
     } catch (error) {

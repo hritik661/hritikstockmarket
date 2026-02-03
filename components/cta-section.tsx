@@ -25,7 +25,7 @@ export function CTASection() {
               <Link href="/about">Learn More About Us</Link>
             </Button>
             {/* Only show Get Started Free if not logged in */}
-            {typeof window !== 'undefined' && !localStorage.getItem('hrtik_stocks_session_token') && (
+            {typeof window !== 'undefined' && !document.cookie.includes('session_token=') && (
               <Button asChild size="lg" className="rounded-full text-base md:text-lg font-semibold h-12 md:h-14 px-8 md:px-10">
                 <Link href="/login" className="flex items-center gap-2">
                   Get Started Free

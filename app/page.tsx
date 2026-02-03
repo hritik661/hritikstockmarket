@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic"
 import { Header } from "@/components/header"
 import { MarketStatus } from "@/components/market-status"
+import { IndicesTicker } from "@/components/indices-ticker"
 import { useAuth } from "@/contexts/auth-context"
 import { useEffect, Suspense } from "react"
 import { useRouter } from "next/navigation"
@@ -59,6 +60,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-background">
       <Header />
+      <IndicesTicker />
 
       <main className="container mx-auto px-3 py-4 md:px-3 md:py-6">
         <div className="flex flex-col lg:flex-row gap-4 md:gap-6">
@@ -102,13 +104,6 @@ export default function HomePage() {
               style={{ animationDelay: "0.4s" }}
             >
               <FiftyTwoWeekView type="near-high" title="52-Week Highs" description="Stocks near their 52-week highs" limit={20} />
-            </div>
-
-            {/* 52-Week Lows */}
-            <div
-              style={{ animationDelay: "0.5s" }}
-            >
-              <FiftyTwoWeekView type="near-low" title="52-Week Lows" description="Stocks near their 52-week lows" limit={10} />
             </div>
           </div>
 

@@ -40,7 +40,7 @@ export function StockCard({ stock, chartData, hideLogo, largeCard, noBox }: Stoc
                   className={`flex items-center gap-0.5 text-[9px] md:text-[10px] px-1 py-0.5 rounded-lg font-semibold
                     ${
                       isPositive
-                        ? "bg-green-500/20 text-green-500 border border-green-500/30"
+                        ? "bg-green-500/30 text-green-500 border border-green-500/60"
                         : "bg-red-500/20 text-red-500 border border-red-500/30"
                     }`}
                 >

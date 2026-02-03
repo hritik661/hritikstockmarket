@@ -19,6 +19,11 @@ import {
   calculatePortfolioMetrics 
 } from "@/lib/pnl-calculator"
 import { calculateOptionsPnL, calculateOptionsPnLPercent } from "@/lib/options-calculator"
+import { 
+  calculateBuyTransaction, 
+  calculateSellTransaction,
+  calculateCloseAllPositions 
+} from "@/lib/trading-calculator"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
@@ -383,6 +388,7 @@ export default function PortfolioPage() {
     )
   }
 
+  // Portfolio summary calculations
   const totalInvested = holdings.reduce((sum, h) => {
     const avgPrice = isNaN(h.avgPrice) ? 0 : h.avgPrice
     const quantity = isNaN(h.quantity) ? 0 : h.quantity
@@ -398,6 +404,8 @@ export default function PortfolioPage() {
   }, 0)
   
   // Total P&L = Total Current Value - Total Invested
+  // When market is open: Shows live P&L based on current prices
+  // When market is closed: Shows P&L based on last trading prices
   const totalPnL = totalCurrentValue - totalInvested
   const totalPnLPercent = totalInvested > 0 ? (totalPnL / totalInvested) * 100 : 0
 

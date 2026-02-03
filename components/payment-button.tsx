@@ -14,8 +14,17 @@ export function PaymentButton() {
   const handlePayment = async () => {
     setLoading(true)
     try {
+      // If no session cookie is available, ask user to sign in
+      const hasCookie = typeof document !== 'undefined' && document.cookie.includes('session_token=')
+      if (!hasCookie) {
+        setLoading(false)
+        toast({ title: 'Sign in required', description: 'Please sign in to continue to payment.', variant: 'default' })
+        return
+      }
       const response = await fetch('/api/predictions/create-payment', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
       })
 
       const data = await response.json()
@@ -24,7 +33,7 @@ export function PaymentButton() {
         throw new Error(data.error || 'Failed to create payment')
       }
 
-      // Redirect to Instamojo payment page
+      // Redirect to Razorpay test payment page (returned from backend)
       window.location.href = data.paymentLink
 
     } catch (error) {

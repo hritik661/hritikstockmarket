@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 
 const cache = new Map<string, { data: any; timestamp: number }>()
-const CACHE_DURATION = 300000 // 5 minutes for gainers/losers
+const CACHE_DURATION = 60000 // 1 minute for ultra-fast updates (was 5 minutes)
 
 export async function GET(request: NextRequest) {
   const type = request.nextUrl.searchParams.get("type") // 'gainers' or 'losers'
@@ -14,7 +14,11 @@ export async function GET(request: NextRequest) {
   const cacheKey = `${type}_${count}`
   const cached = cache.get(cacheKey)
   if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-    return NextResponse.json(cached.data)
+    // Return with aggressive cache headers
+    const response = NextResponse.json(cached.data)
+    response.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120')
+    response.headers.set('CDN-Cache-Control', 'max-age=60')
+    return response
   }
 
   try {

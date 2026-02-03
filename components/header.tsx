@@ -137,17 +137,27 @@ export function Header({ isLandingPage = false }: { isLandingPage?: boolean }) {
               <div className="flex items-center gap-0.5 md:hidden justify-center flex-wrap w-full mt-1">
                 <Link href="/portfolio" className="flex-1">
                   <Button variant="outline" size="sm" className="w-full h-9 text-xs border border-blue-400/50 bg-blue-500/10 text-blue-600 font-semibold hover:bg-blue-500/20">
-                    Portfolio
+                    <div className="flex items-center justify-center gap-2">
+                      <Briefcase className="h-4 w-4 text-blue-500" />
+                      <span>Portfolio</span>
+                    </div>
                   </Button>
                 </Link>
                 <Link href="/options" className="flex-1">
                   <Button variant="outline" size="sm" className="w-full h-9 text-xs border border-cyan-400/50 bg-cyan-500/10 text-cyan-600 font-semibold hover:bg-cyan-500/20">
-                    Option
+                    <div className="flex items-center justify-center gap-2">
+                      <BarChart3 className="h-4 w-4 text-cyan-500" />
+                      <span>Option</span>
+                    </div>
                   </Button>
                 </Link>
+
                 <Link href="/about" className="flex-1">
                   <Button variant="outline" size="sm" className="w-full h-9 text-xs border border-green-400/50 bg-green-500/10 text-green-600 font-semibold hover:bg-green-500/20">
-                    About
+                    <div className="flex items-center justify-center gap-2">
+                      <Info className="h-4 w-4 text-green-500" />
+                      <span>About</span>
+                    </div>
                   </Button>
                 </Link>
                 <Button
@@ -157,7 +167,7 @@ export function Header({ isLandingPage = false }: { isLandingPage?: boolean }) {
                   onClick={() => router.push('/predictions')}
                 >
                   <div className="flex items-center justify-center gap-1">
-                    <Sparkles className="h-3 w-3 text-purple-500 group-hover:animate-spin transition-all duration-300" />
+                    <Sparkles className="h-3 w-3 text-purple-500 animate-spin transition-all duration-300" />
                     <span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent font-semibold group-hover:from-purple-500 group-hover:to-pink-500 transition-all duration-300">
                       Predictions
                     </span>
@@ -193,11 +203,11 @@ export function Header({ isLandingPage = false }: { isLandingPage?: boolean }) {
                          animate-pulse hover:animate-none"
               >
                 <span className="relative z-10 flex items-center gap-1">
-                  <Sparkles className="h-3 w-3 animate-spin group-hover:animate-ping transition-all duration-300 drop-shadow-lg" />
+                  <Sparkles className="h-3 w-3 animate-spin animate-ping transition-all duration-300 drop-shadow-lg" />
                   <span className="bg-gradient-to-r from-yellow-200 via-yellow-100 to-white bg-clip-text text-transparent group-hover:from-yellow-100 group-hover:via-yellow-50 group-hover:to-white font-bold drop-shadow-sm">
                     Predictions
                   </span>
-                  <div className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 md:h-2 md:w-2 bg-yellow-400 rounded-full animate-ping opacity-75 group-hover:animate-pulse"></div>
+                  <div className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 md:h-2 md:w-2 bg-yellow-400 rounded-full animate-ping opacity-100"></div>
                   <div className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 md:h-2 md:w-2 bg-yellow-300 rounded-full animate-pulse opacity-50 group-hover:opacity-100"></div>
                   <div className="absolute -top-0.5 -right-0.5 h-1 w-1 md:h-1.5 md:w-1.5 bg-white rounded-full animate-pulse opacity-30 group-hover:opacity-80"></div>
                 </span>
@@ -266,7 +276,7 @@ export function Header({ isLandingPage = false }: { isLandingPage?: boolean }) {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild className="cursor-pointer relative overflow-hidden group md:hidden">
                   <Link href="/predictions" className="flex items-center gap-2 p-2">
-                    <Sparkles className="h-3 w-3 text-purple-500 group-hover:animate-spin transition-all duration-300" />
+                    <Sparkles className="h-3 w-3 text-purple-500 animate-spin transition-all duration-300" />
                     <span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent font-semibold group-hover:from-purple-500 group-hover:to-pink-500 transition-all duration-300 text-sm">
                       Predictions
                     </span>

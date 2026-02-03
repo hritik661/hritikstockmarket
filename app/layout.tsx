@@ -8,6 +8,7 @@ import { PredictionProvider } from "@/contexts/prediction-context"
 import { Toaster } from "@/components/ui/toaster"
 import StartupRedirect from "@/components/startup-redirect"
 import LoginModal from "@/components/login-modal"
+import Providers from "@/components/providers"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" })
@@ -49,14 +50,12 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${inter.variable} ${geistMono.variable} font-sans antialiased`}>
-            <AuthProvider>
-              <PredictionProvider>
-                <StartupRedirect />
-                {children}
-                <LoginModal />
-                <Toaster />
-              </PredictionProvider>
-            </AuthProvider>
+            <Providers>
+              <StartupRedirect />
+              {children}
+              <LoginModal />
+              <Toaster />
+            </Providers>
         <Analytics />
       </body>
     </html>

@@ -34,15 +34,15 @@ export function GainersLosers() {
         )
         
         if (!loading) setLoading(true) // Only set if not already loading
-        // Show only strong gainers (>= 5%)
+        // Show gainers between 5% and 30% (all gainer stocks)
         const gainersSorted = quotes
           .filter(q => typeof q.regularMarketChangePercent === 'number' && (q.regularMarketChangePercent || 0) >= 5)
           .sort((a, b) => (b.regularMarketChangePercent || 0) - (a.regularMarketChangePercent || 0))
           .slice(0, TOP_COUNT)
         
-        // Show losing stocks between -5% and -20% (strong losers)
+        // Show losing stocks - ANY NEGATIVE CHANGE (more flexible for display)
         let losersSorted = quotes
-          .filter(q => typeof q.regularMarketChangePercent === 'number' && (q.regularMarketChangePercent || 0) <= -5 && (q.regularMarketChangePercent || 0) >= -20)
+          .filter(q => typeof q.regularMarketChangePercent === 'number' && (q.regularMarketChangePercent || 0) < 0)
           .sort((a, b) => (a.regularMarketChangePercent || 0) - (b.regularMarketChangePercent || 0))
           .slice(0, TOP_COUNT)
         
@@ -105,7 +105,7 @@ export function GainersLosers() {
         <CardHeader className="pb-0.5 md:pb-2">
           <CardTitle className="text-xs md:text-base flex items-center gap-1 md:gap-2">
             <TrendingUp className="h-2.5 w-2.5 md:h-4 md:w-4 text-primary" />
-            Top Gainers (≥5%)
+            Top Gainers (5%+)
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-0.5 md:space-y-2 max-h-48 md:max-h-80 overflow-y-auto">
@@ -156,7 +156,7 @@ export function GainersLosers() {
         <CardHeader className="pb-0.5 md:pb-2">
           <CardTitle className="text-xs md:text-base flex items-center gap-1 md:gap-2">
             <TrendingDown className="h-2.5 w-2.5 md:h-4 md:w-4 text-destructive" />
-            Top Losers (-5% to -20%)
+            Top Losers (Below 0%)
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-0.5 md:space-y-2 max-h-48 md:max-h-80 overflow-y-auto">

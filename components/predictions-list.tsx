@@ -113,6 +113,13 @@ export function PredictionsList() {
   const { user, markPredictionsAsPaid, updateBalance } = useAuth()
   const { deductBalance, addBalance } = useBalance()
   const { toast } = useToast()
+
+  // ⚠️ CRITICAL GUARD: RETURN NOTHING if user hasn't paid
+  // This prevents ANY stock rendering without payment
+  if (!user || user.isPredictionPaid !== true) {
+    console.warn('🔒 PredictionsList blocked - user has not paid for predictions')
+    return null
+  }
   
   const [predictions, setPredictions] = useState<StockPrediction[]>([])
   const [loading, setLoading] = useState(true)
@@ -285,6 +292,24 @@ export function PredictionsList() {
     )
   }
 
+  // CRITICAL: Block any stock display if user has NOT explicitly paid
+  if (!user || user.isPredictionPaid !== true) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 space-y-6">
+        <div className="text-center space-y-4 max-w-md">
+          <div className="text-6xl">🔒</div>
+          <h2 className="text-3xl font-bold">Premium Access Required</h2>
+          <p className="text-lg text-muted-foreground">
+            All 1000+ stock predictions are locked behind a payment wall.
+          </p>
+          <p className="text-base text-muted-foreground font-semibold">
+            ✓ Just ₹100 lifetime access
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   // Quick buy/sell helpers (used when clicking Buy/Sell on prediction cards)
 
   const quickBuy = async (stock: StockPrediction, qty = 1) => {
@@ -453,6 +478,70 @@ export function PredictionsList() {
         </div>
       )}
 
+      {/* Top Gainers Section - Stocks up to 20% gain */}
+      {predictions.length > 0 && (
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-green-500/30 to-emerald-500/30 flex items-center justify-center">
+              <Zap className="h-5 w-5 text-green-500" />
+            </div>
+            <h2 className="text-2xl font-bold">Top Gainers Today</h2>
+            <span className="text-sm text-muted-foreground ml-auto">Stocks with 0-20% gain</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {predictions
+              .filter(stock => stock.changePercent >= 0 && stock.changePercent <= 20)
+              .slice(0, 6)
+              .map((stock) => (
+                <div
+                  key={`top-gainer-${stock.symbol}`}
+                  className="p-4 rounded-lg bg-card border border-green-500/30 hover:border-green-500/60 hover:shadow-lg transition-all cursor-pointer group"
+                  onClick={() => {
+                    setSelectedStock(stock)
+                    setChartRange("1M")
+                  }}
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <h3 className="font-bold text-lg group-hover:text-green-500 transition">{stock.symbol.split(".")[0]}</h3>
+                      <p className="text-sm text-muted-foreground">{stock.name}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-mono font-bold text-lg">₹{stock.price ? stock.price.toLocaleString("en-IN") : "0"}</p>
+                      <div className="text-sm font-bold px-2.5 py-1 rounded-md text-green-500 bg-green-500/20 border border-green-500/40 inline-block mt-1">
+                        +{(stock.changePercent || 0).toFixed(2)}%
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      className="flex-1 text-xs h-7"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setQuantityDialog({ visible: true, stock, type: 'buy', quantity: 1 })
+                      }}
+                    >
+                      Buy
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 text-xs h-7"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setQuantityDialog({ visible: true, stock, type: 'sell', quantity: 1 })
+                      }}
+                    >
+                      Sell
+                    </Button>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-2 md:gap-3 lg:gap-4">
         {predictions.map((stock) => {
           const miniChart = generateStockChartData(stock.price, "1W").map((d) => ({
@@ -478,7 +567,7 @@ export function PredictionsList() {
               </div>
               <div className="text-right">
                 <div className="font-mono font-bold text-base md:text-lg">₹{stock.price ? stock.price.toLocaleString("en-IN") : "0"}</div>
-                <div className={`text-xs md:text-sm font-bold px-2 py-1 md:px-2 md:py-1 rounded ${stock.change >= 0 ? "text-green-800 bg-green-200 border border-green-400" : "text-red-600 bg-red-50 border border-red-300"}`}>
+                <div className={`text-xs md:text-sm font-bold px-2.5 py-1.5 md:px-3 md:py-1.5 rounded-md ${stock.change >= 0 ? "text-green-800 bg-green-800/10 border border-green-800/20 font-extrabold" : "text-red-600 bg-red-50 border border-red-300"}`}>
                   {stock.change >= 0 ? "+" : ""}
                   {(stock.changePercent || 0).toFixed(2)}%
                 </div>
@@ -498,8 +587,8 @@ export function PredictionsList() {
               </div>
             </div>
 
-            <div className="pt-2 md:pt-3 border-t border-border/50 flex items-center justify-between">
-              <div className="px-2 py-1 md:px-2 md:py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-xs md:text-sm font-black uppercase tracking-wider">
+              <div className="pt-2 md:pt-3 border-t border-border/50 flex items-center justify-between">
+              <div className="px-2 py-1 md:px-2 md:py-1 rounded-full bg-emerald-900/10 text-emerald-800 text-xs md:text-sm font-black uppercase tracking-wider">
                 Target: +{stock.predictedGrowth.toFixed(1)}%
               </div>
               <div className="text-xs md:text-sm font-bold text-muted-foreground uppercase tracking-widest">

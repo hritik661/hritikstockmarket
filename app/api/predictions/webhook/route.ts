@@ -1,59 +1,70 @@
-
 import { NextResponse } from "next/server"
 import nodemailer from 'nodemailer'
 import { neon } from "@neondatabase/serverless"
+import crypto from 'crypto'
 
 export async function POST(request: Request) {
   try {
-    // Instamojo webhook sends form data
-    const formData = await request.formData();
-    const data = Object.fromEntries(formData.entries());
+    const bodyText = await request.text()
 
-    // Instamojo webhook payload
-    const { payment_id, status, payment_request_id, buyer_email, amount } = data;
-
-    console.log('[WEBHOOK] Instamojo webhook received:', { payment_id, status, payment_request_id, buyer_email, amount });
-
-    if (status !== 'Credit') {
-      return NextResponse.json({ status: 'ignored', message: 'Payment not completed.' });
+    // Verify Razorpay signature if webhook secret exists
+    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET
+    if (webhookSecret) {
+      const signature = request.headers.get('x-razorpay-signature') || request.headers.get('X-Razorpay-Signature')
+      if (!signature) return NextResponse.json({ status: 'error', message: 'Signature missing' }, { status: 400 })
+      const expected = crypto.createHmac('sha256', webhookSecret).update(bodyText).digest('hex')
+      const match = crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature))
+      if (!match) return NextResponse.json({ status: 'error', message: 'Invalid signature' }, { status: 400 })
     }
+
+    let payload: any = {}
+    try {
+      const formData = await request.formData()
+      payload = Object.fromEntries(formData.entries())
+    } catch (e) {
+      try {
+        payload = bodyText ? JSON.parse(bodyText) : {}
+      } catch { payload = {} }
+    }
+
+    // Normalize fields
+    const paymentId = payload.payment_id || payload.razorpay_payment_id || payload?.payload?.payment?.entity?.id || null
+    const orderIdReceived = payload.payment_request_id || payload.payment_link_id || payload.order_id || payload?.payload?.payment?.entity?.order_id || null
+    const statusRaw = payload.status || (payload?.payload?.payment?.entity?.status) || ''
+    const amount = payload.amount || payload?.amount_paid || payload?.payload?.payment?.entity?.amount || null
+    const status = String(statusRaw || '').toLowerCase()
+    if (!status.includes('paid') && status !== 'credit') return NextResponse.json({ status: 'ignored', message: 'Payment not completed.' })
 
     // Update payment status in database
-    const databaseUrl = process.env.DATABASE_URL!;
-    const sql = neon(databaseUrl);
-    // Find user by payment_request_id (which is our order_id)
-    const orderRows = await sql`
-      SELECT user_id FROM payment_orders WHERE order_id = ${payment_request_id}
-    `;
-    if (!orderRows.length) {
-      return NextResponse.json({ status: 'error', message: 'Order not found.' });
-    }
-    const userId = orderRows[0].user_id;
-    // Update user access
-    await sql`
-      UPDATE users SET is_prediction_paid = true WHERE id = ${userId}
-    `;
-    await sql`
-      UPDATE payment_orders SET status = 'paid', payment_id = ${payment_id} WHERE order_id = ${payment_request_id}
-    `;
+    const databaseUrl = process.env.DATABASE_URL!
+    const sql = neon(databaseUrl)
 
-    // Send email notification
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_APP_PASSWORD,
-      },
-    });
-    await transporter.sendMail({
-      from: `${process.env.GMAIL_FROM_NAME} <${process.env.GMAIL_USER}>`,
-      to: process.env.GMAIL_USER,
-      subject: 'Prediction Payment Received',
-      text: `Payment received for predictions.\nPayment Request ID: ${payment_request_id}\nPayment ID: ${payment_id}\nUser ID: ${userId}\nAmount: ${amount}`,
-    });
+    // Find user by order id
+    const searchOrderId = orderIdReceived
+    if (!searchOrderId) return NextResponse.json({ status: 'error', message: 'Order id missing in webhook' })
+    const orderRows = await sql`SELECT user_id FROM payment_orders WHERE order_id = ${searchOrderId}`
+    if (!orderRows.length) return NextResponse.json({ status: 'error', message: 'Order not found.' })
+    const userId = orderRows[0].user_id
 
-    return NextResponse.json({ status: 'success', message: 'Payment processed and access granted.' });
+    await sql`UPDATE users SET is_prediction_paid = true WHERE id = ${userId}`
+    await sql`UPDATE payment_orders SET status = 'paid', payment_id = ${paymentId} WHERE order_id = ${searchOrderId}`
+
+    // Optional notification
+    try {
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD },
+      })
+      await transporter.sendMail({
+        from: `${process.env.GMAIL_FROM_NAME} <${process.env.GMAIL_USER}>`,
+        to: process.env.GMAIL_USER,
+        subject: 'Prediction Payment Received',
+        text: `Payment received for predictions.\nOrder ID: ${searchOrderId}\nPayment ID: ${paymentId}\nUser ID: ${userId}\nAmount: ${amount}`,
+      })
+    } catch (e) {}
+
+    return NextResponse.json({ status: 'success', message: 'Payment processed and access granted.' })
   } catch (error: any) {
-    return NextResponse.json({ status: 'error', message: error && typeof error === 'object' && 'message' in error ? error.message : 'Webhook error.' });
+    return NextResponse.json({ status: 'error', message: error?.message || 'Webhook error.' }, { status: 500 })
   }
 }
