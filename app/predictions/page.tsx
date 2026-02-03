@@ -39,6 +39,11 @@ export default function PredictionsPage() {
           const paid = data?.user?.isPredictionPaid === true
           console.log('✅ Payment verified from server:', paid)
           setVerifiedPaymentStatus(paid)
+          
+          // If user came from payment success, log it
+          if (searchParams.get('from') === 'payment' || searchParams.get('success') === 'paid') {
+            console.log('✅ User redirected from successful payment')
+          }
         } else {
           console.error('❌ Could not verify payment from server')
           setVerifiedPaymentStatus(false)
@@ -52,7 +57,7 @@ export default function PredictionsPage() {
     }
 
     verifyPaymentStatus()
-  }, [user, isLoading])
+  }, [user, isLoading, searchParams])
 
   // Block rendering while checking payment
   if (isLoading || !authReady || verifiedPaymentStatus === null) {
@@ -61,6 +66,9 @@ export default function PredictionsPage() {
         <div className="flex flex-col items-center gap-4">
           <div className="h-10 w-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
           <p className="text-muted-foreground text-sm">Verifying payment status...</p>
+          {searchParams.get('from') === 'payment' && (
+            <p className="text-primary text-sm font-semibold">Processing your payment...</p>
+          )}
         </div>
       </div>
     )
@@ -214,11 +222,39 @@ export default function PredictionsPage() {
                         const checkPayment = setInterval(async () => {
                           if (paymentWindow && paymentWindow.closed) {
                             clearInterval(checkPayment)
-                            window.location.href = '/predictions?from=payment'
+                            // Wait 2 seconds for webhook to process, then verify payment
+                            setTimeout(async () => {
+                              try {
+                                console.log('🔍 Checking payment status after payment window closed...')
+                                const verifyRes = await fetch('/api/auth/me', { cache: 'no-store' })
+                                if (verifyRes.ok) {
+                                  const verifyData = await verifyRes.json()
+                                  if (verifyData?.user?.isPredictionPaid === true) {
+                                    console.log('✅ Payment verified! Redirecting to predictions...')
+                                    // Payment confirmed, redirect to show predictions
+                                    window.location.href = '/predictions?from=payment&success=true'
+                                  } else {
+                                    console.log('⏳ Payment still processing, waiting...')
+                                    // Still processing, wait a bit more
+                                    setTimeout(() => {
+                                      window.location.href = '/predictions?from=payment&checking=true'
+                                    }, 2000)
+                                  }
+                                } else {
+                                  window.location.href = '/predictions?from=payment&checking=true'
+                                }
+                              } catch (err) {
+                                console.error('Error verifying payment:', err)
+                                window.location.href = '/predictions?from=payment&checking=true'
+                              }
+                            }, 2000)
                           }
-                        }, 2000)
+                        }, 1000)
+                      } else {
+                        alert(data.error || 'Failed to create payment')
                       }
                     } catch (err) {
+                      console.error('Error creating payment:', err)
                       alert('Error starting payment')
                     }
                   }}
