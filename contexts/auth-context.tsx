@@ -93,18 +93,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     ;(async () => {
       try {
-        await fetch("/api/auth/logout", { method: "POST" })
-      } catch {}
+        console.log('🔐 Logging out user...')
+        const response = await fetch("/api/auth/logout", { method: "POST" })
+        console.log('✅ Logout API response:', response.status)
+      } catch (err) {
+        console.error('❌ Logout API error:', err)
+      }
+      
+      // Clear local state
       setUser(null)
+      console.log('✅ User state cleared')
+      
+      // Clear local storage
       try {
-        router.push("/")
+        if (typeof window !== "undefined") {
+          localStorage.clear()
+          sessionStorage.clear()
+          console.log('✅ Storage cleared')
+        }
       } catch {}
+      
+      // Force full page redirect to home
       try {
-        router.refresh()
-      } catch {}
-      try {
-        if (typeof window !== "undefined") window.location.replace("/")
-      } catch {}
+        if (typeof window !== "undefined") {
+          console.log('🔄 Redirecting to home page...')
+          window.location.href = "/"
+        }
+      } catch (err) {
+        console.error('❌ Redirect error:', err)
+      }
     })()
   }
 
