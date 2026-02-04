@@ -5,12 +5,14 @@ import nodemailer from "nodemailer"
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { email } = body
+    const emailRaw = body.email
+    const email = emailRaw.toLowerCase().trim()
 
-    console.log("[v0] Send OTP request for email:", email)
+    console.log("[OTP-SEND] Raw email input:", emailRaw)
+    console.log("[OTP-SEND] Normalized email:", email)
 
     if (!email || !email.includes("@")) {
-      console.log("[v0] Invalid email format")
+      console.log("[OTP-SEND] ❌ Invalid email format")
       return NextResponse.json({ success: false, error: "Valid email is required" }, { status: 400 })
     }
 
@@ -18,8 +20,8 @@ export async function POST(request: NextRequest) {
     const otp = generateOTP()
     await storeOTP(email, otp)
 
-    console.log("[v0] Generated OTP:", otp, "for email:", email)
-    console.log("[v0] OTP stored for:", email, "expires at:", new Date(Date.now() + 15 * 60 * 1000).toISOString())
+    console.log("[OTP-SEND] ✅ Generated OTP:", otp, "for email:", email)
+    console.log("[OTP-SEND] Expires at:", new Date(Date.now() + 15 * 60 * 1000).toISOString())
 
     let emailSent = false
     let emailError = ""
@@ -27,10 +29,10 @@ export async function POST(request: NextRequest) {
     // Check Gmail credentials
     if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
       console.error(
-        "[v0] Gmail not configured. GMAIL_USER:", !!process.env.GMAIL_USER,
+        "[OTP-SEND] ❌ Gmail not configured. GMAIL_USER:", !!process.env.GMAIL_USER,
         "GMAIL_APP_PASSWORD:", !!process.env.GMAIL_APP_PASSWORD
       )
-      console.error("[v0] See /GMAIL_OTP_SETUP.md for instructions")
+      console.error("[OTP-SEND] See /GMAIL_OTP_SETUP.md for instructions")
       return NextResponse.json(
         {
           success: false,
@@ -41,8 +43,8 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      console.log("[v0] Attempting to send OTP via Gmail SMTP...")
-      console.log("[v0] Gmail user:", process.env.GMAIL_USER)
+      console.log("[OTP-SEND] 📧 Attempting to send OTP via Gmail SMTP...")
+      console.log("[OTP-SEND] Gmail user:", process.env.GMAIL_USER)
 
       const transporter = nodemailer.createTransport({
         service: "gmail",
@@ -54,7 +56,7 @@ export async function POST(request: NextRequest) {
 
       // Test connection
       await transporter.verify()
-      console.log("[v0] Gmail connection verified")
+      console.log("[OTP-SEND] ✅ Gmail connection verified")
 
       const mailOptions = {
         from: process.env.GMAIL_FROM_NAME
@@ -67,14 +69,14 @@ export async function POST(request: NextRequest) {
 
       await transporter.sendMail(mailOptions)
       emailSent = true
-      console.log("[v0] OTP email sent successfully via Gmail to:", email)
+      console.log("[OTP-SEND] ✅ OTP email sent successfully via Gmail to:", email)
     } catch (gmailError) {
-      console.error("[v0] Error sending via Gmail:", gmailError)
+      console.error("[OTP-SEND] ❌ Error sending via Gmail:", gmailError)
       emailError = gmailError instanceof Error ? gmailError.message : "Gmail error"
     }
 
     if (!emailSent) {
-      console.error("[v0] Failed to send OTP email. Error:", emailError)
+      console.error("[OTP-SEND] ❌ Failed to send OTP email. Error:", emailError)
       return NextResponse.json(
         {
           success: false,
@@ -89,7 +91,7 @@ export async function POST(request: NextRequest) {
       message: "OTP sent to your email. Please check your inbox and spam folder.",
     })
   } catch (error) {
-    console.error("[v0] Error in send-otp:", error)
+    console.error("[OTP-SEND] ❌ Error in send-otp:", error)
     return NextResponse.json(
       {
         success: false,
@@ -135,7 +137,7 @@ function generateEmailHTML(otp: string): string {
                 <div class="otp">${otp}</div>
               </div>
               <div class="info">
-                <strong>Code expires in 5 minutes</strong>
+                <strong>Code expires in 15 minutes</strong>
               </div>
               <div class="warning">
                 ⚠️ Never share this code with anyone. We will never ask you for it.

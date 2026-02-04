@@ -5,37 +5,42 @@ import { neon } from "@neondatabase/serverless"
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { email, otp } = body
+    const emailRaw = body.email
+    const otpRaw = body.otp
+    
+    const email = emailRaw.toLowerCase().trim()
+    const otp = otpRaw.toString().trim()
 
-    console.log("[v0] Verify OTP request for email:", email)
+    console.log("[OTP-VERIFY] Raw input - email:", emailRaw, "otp:", otpRaw)
+    console.log("[OTP-VERIFY] Normalized - email:", email, "otp:", otp)
 
     if (!email || !otp) {
-      console.log("[v0] Missing email or OTP")
+      console.log("[OTP-VERIFY] ❌ Missing email or OTP")
       return NextResponse.json({ success: false, error: "Email and OTP are required" }, { status: 400 })
     }
-    const trimmedOtp = otp.toString().trim()
+
     // Development/test overrides
     if (process.env.NODE_ENV !== "production") {
       if (process.env.ALLOW_ANY_OTP === "true") {
-        console.warn('[v0] Development override: ALLOW_ANY_OTP is enabled — accepting any OTP')
-      } else if (process.env.MASTER_OTP && trimmedOtp === process.env.MASTER_OTP) {
-        console.warn('[v0] Development override: MASTER_OTP matched — accepting OTP')
+        console.warn('[OTP-VERIFY] 🔓 Development override: ALLOW_ANY_OTP is enabled — accepting any OTP')
+      } else if (process.env.MASTER_OTP && otp === process.env.MASTER_OTP) {
+        console.warn('[OTP-VERIFY] 🔓 Development override: MASTER_OTP matched — accepting OTP')
       } else {
-        const verification = await verifyAndDeleteOTP(email, trimmedOtp)
+        const verification = await verifyAndDeleteOTP(email, otp)
         if (!verification.valid) {
-          console.log("[v0] OTP verification failed:", verification.reason)
+          console.log("[OTP-VERIFY] ❌ OTP verification failed:", verification.reason)
           return NextResponse.json({ success: false, error: verification.reason }, { status: 400 })
         }
       }
     } else {
-      const verification = await verifyAndDeleteOTP(email, trimmedOtp)
+      const verification = await verifyAndDeleteOTP(email, otp)
       if (!verification.valid) {
-        console.log("[v0] OTP verification failed:", verification.reason)
+        console.log("[OTP-VERIFY] ❌ OTP verification failed:", verification.reason)
         return NextResponse.json({ success: false, error: verification.reason }, { status: 400 })
       }
     }
 
-    console.log("[v0] OTP verified successfully for:", email)
+    console.log("[OTP-VERIFY] ✅ OTP verified successfully for:", email)
 
     const emailLower = email.toLowerCase()
     let userId: string
@@ -61,15 +66,15 @@ export async function POST(request: NextRequest) {
           userId = newUserResult[0].id
           userBalance = newUserResult[0].balance
           isNewUser = true
-          console.log("[v0] New user created:", emailLower, "with balance: ₹1000000")
+          console.log("[OTP-VERIFY] ✅ New user created:", emailLower, "with balance: ₹1000000")
         } else {
           // User exists, get their current balance
           userId = existingUser[0].id
           userBalance = existingUser[0].balance
-          console.log("[v0] Existing user logged in:", emailLower, "balance: ₹" + userBalance)
+          console.log("[OTP-VERIFY] ✅ Existing user logged in:", emailLower, "balance: ₹" + userBalance)
         }
       } catch (dbError) {
-        console.warn("[v0] Database error, falling back to localStorage:", dbError)
+        console.warn("[OTP-VERIFY] ⚠️ Database error, falling back to localStorage:", dbError)
         userId = emailLower // Use email as ID for local
         isNewUser = true // Assume new if database error
       }
@@ -77,7 +82,7 @@ export async function POST(request: NextRequest) {
       // Use localStorage logic
       userId = emailLower
       isNewUser = true // For localStorage, always treat as new for now
-      console.log("[v0] Using localStorage for user:", emailLower, "balance: ₹1000000")
+      console.log("[OTP-VERIFY] 📝 Using localStorage for user:", emailLower, "balance: ₹1000000")
     }
 
     // Create session token
@@ -91,9 +96,9 @@ export async function POST(request: NextRequest) {
           INSERT INTO user_sessions (user_id, session_token, created_at, last_active)
           VALUES (${userId}, ${sessionToken}, NOW(), NOW())
         `
-        console.log("[v0] Session created in database for user:", userId)
+        console.log("[OTP-VERIFY] ✅ Session created in database for user:", userId)
       } catch (dbError) {
-        console.warn("[v0] Failed to create database session:", dbError)
+        console.warn("[OTP-VERIFY] ⚠️ Failed to create database session:", dbError)
       }
     }
 
@@ -117,7 +122,7 @@ export async function POST(request: NextRequest) {
     })
     return response
   } catch (error) {
-    console.error("[v0] Error in verify-otp:", error)
+    console.error("[OTP-VERIFY] ❌ Error in verify-otp:", error)
     return NextResponse.json(
       {
         success: false,

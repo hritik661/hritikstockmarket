@@ -36,8 +36,9 @@ export default function PredictionsPage() {
         
         if (res.ok) {
           const data = await res.json()
+          // Check if user has paid for predictions
           const paid = data?.user?.isPredictionPaid === true
-          console.log('✅ Payment verified from server:', paid)
+          console.log('✅ Payment verified from server:', paid, 'User:', data?.user?.email)
           setVerifiedPaymentStatus(paid)
           
           // If user came from payment success, log it
@@ -45,7 +46,7 @@ export default function PredictionsPage() {
             console.log('✅ User redirected from successful payment')
           }
         } else {
-          console.error('❌ Could not verify payment from server')
+          console.log('⚠️ Auth check failed, assuming unpaid user')
           setVerifiedPaymentStatus(false)
         }
       } catch (err) {
@@ -60,7 +61,7 @@ export default function PredictionsPage() {
   }, [user, isLoading, searchParams])
 
   // Block rendering while checking payment
-  if (isLoading || !authReady || verifiedPaymentStatus === null) {
+  if (isLoading || !authReady) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -75,7 +76,7 @@ export default function PredictionsPage() {
   }
 
   // Not logged in - show login prompt
-  if (!user || verifiedPaymentStatus === null) {
+  if (!user) {
     return (
       <div className="min-h-screen bg-background">
         <Header />

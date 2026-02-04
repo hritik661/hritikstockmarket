@@ -26,7 +26,9 @@ export function LoginForm({ compact, full, compactOnly }: { compact?: boolean; f
     setOtpSuccess("")
     setOtpLoading(true)
 
-    if (!otpEmail || !otpEmail.includes("@")) {
+    const emailNormalized = otpEmail.toLowerCase().trim()
+    
+    if (!emailNormalized || !emailNormalized.includes("@")) {
       setOtpError("Please enter a valid email address")
       setOtpLoading(false)
       return
@@ -36,7 +38,7 @@ export function LoginForm({ compact, full, compactOnly }: { compact?: boolean; f
       const response = await fetch("/api/auth/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: otpEmail }),
+        body: JSON.stringify({ email: emailNormalized }),
       })
 
       const data = await response.json()

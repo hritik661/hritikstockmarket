@@ -4,7 +4,6 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   // ✅ AGGRESSIVE CACHING & PERFORMANCE
-  swcMinify: true,
   compress: true,
   productionBrowserSourceMaps: false,
   staticPageGenerationTimeout: 120,
@@ -26,6 +25,9 @@ const nextConfig = {
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
   
+  // ✅ EXTERNAL PACKAGES
+  serverExternalPackages: ['@neondatabase/serverless'],
+  
   // ✅ EXPERIMENTAL OPTIMIZATIONS
   experimental: {
     optimizeCss: true,
@@ -34,16 +36,6 @@ const nextConfig = {
       '@radix-ui/react-dialog',
       '@radix-ui/react-slot',
     ],
-    serverComponentsExternalPackages: ['@neondatabase/serverless'],
-  },
-  
-  // ✅ REVALIDATE ISR
-  revalidate: {
-    dashboard: 30,  // Revalidate dashboard every 30 seconds
-    gainers: 15,    // Revalidate gainers every 15 seconds
-    losers: 15,     // Revalidate losers every 15 seconds
-    news: 60,       // Revalidate news every 60 seconds
-    predictions: 30, // Revalidate predictions every 30 seconds
   },
   
   outputFileTracingRoot: process.cwd(),

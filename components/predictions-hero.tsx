@@ -6,24 +6,16 @@ import { useAuth } from "@/contexts/auth-context"
 
 
 const handlePredictionClick = async (showModal: (value: boolean) => void) => {
-  // Show the unlock modal first
-  showModal(true)
-};
-
-const handleConfirmPayment = async (
-  closeModal: () => void,
-  setShowSuccess: (value: boolean) => void,
-  markPredictionsAsPaid?: () => void
-) => {
-  closeModal()
-
+  // Directly initiate payment without showing modal first
   try {
-    const hasCookie = typeof document !== 'undefined' && document.cookie.includes('session_token=')
-    if (!hasCookie) {
+    // Check session from backend
+    const authCheck = await fetch('/api/auth/me')
+    if (!authCheck.ok) {
       alert('Please sign in to continue to payment.')
       return
     }
 
+    // Proceed with payment directly
     const res = await fetch('/api/predictions/create-payment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
     const data = await res.json();
     if (data.paymentLink) {
@@ -36,34 +28,36 @@ const handleConfirmPayment = async (
       const checkPayment = setInterval(async () => {
         if (paymentWindow && paymentWindow.closed) {
           clearInterval(checkPayment);
-          // Call backend to verify payment status from your database
+          // Wait for webhook to process
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          // Verify payment and redirect
           try {
-            const verifyRes = await fetch('/api/predictions/check-access')
+            const verifyRes = await fetch('/api/auth/me')
             if (verifyRes.ok) {
-              // Refresh user state via auth context if provided
-              try {
-                if (markPredictionsAsPaid) await markPredictionsAsPaid()
-              } catch (e) {}
-              setShowSuccess(true)
-            } else {
-              alert('Payment not verified. Please try again.');
+              const userData = await verifyRes.json()
+              if (userData?.user?.isPredictionPaid) {
+                // Payment successful - redirect to predictions
+                window.location.href = '/predictions?from=payment&success=true'
+              } else {
+                alert('Payment verification in progress. Please refresh the page.')
+                window.location.href = '/predictions'
+              }
             }
           } catch (e) {
-            alert('Payment verification failed. Please refresh and check your access.');
+            alert('Payment verification failed. Redirecting to predictions...');
+            window.location.href = '/predictions'
           }
         }
-      }, 2000);
+      }, 500);
     } else {
       alert(data.error || 'Failed to create payment.');
     }
   } catch (err) {
-    alert('Error creating payment.');
+    alert('Error initiating payment. Please try again.');
   }
 };
 
-
 export default function PredictionsHero() {
-  const [showModal, setShowModal] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const { markPredictionsAsPaid } = useAuth()
 
@@ -112,158 +106,44 @@ export default function PredictionsHero() {
           </button>
         </div>
 
-        {/* Payment Modal */}
-        {showModal && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
-            <div className="bg-card border border-border rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl animate-in zoom-in-95">
-              {/* Header */}
-              <div className="sticky top-0 bg-card border-b border-border flex items-center justify-between p-4 sm:p-6">
-                <h3 className="text-2xl font-bold flex items-center gap-2 animate-pulse">
-                  <span className="text-3xl">🔮</span> Access Premium Stock Predictions
-                </h3>
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="text-muted-foreground hover:text-foreground transition p-1 hover:rotate-90"
-                >
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
-
-              {/* Content */}
-              <div className="p-4 sm:p-6 space-y-6">
-                {/* Introduction */}
-                <div className="animate-slide-in-up">
-                  <p className="text-base sm:text-lg text-muted-foreground mb-4 font-semibold leading-relaxed">Get access to high-quality stock predictions backed by strong fundamentals and real market strength — at a price that's almost unbelievable.</p>
-                </div>
-
-                {/* Price Section */}
-                <div className="bg-gradient-to-br from-primary/20 to-accent/20 border border-primary/40 rounded-xl p-6 sm:p-8 text-center animate-bounce-slow">
-                  <p className="text-sm text-muted-foreground mb-3 font-medium tracking-widest uppercase">💰 Special Lifetime Offer</p>
-                  <h2 className="text-5xl sm:text-6xl font-extrabold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent">Just ₹100</h2>
-                  <ul className="space-y-3 text-base text-foreground font-medium">
-                    <li className="animate-slide-in flex items-center justify-center gap-2" style={{ animationDelay: '0.1s' }}>
-                      <span className="text-lg">✓</span>
-                      <span>Pay only once</span>
-                    </li>
-                    <li className="animate-slide-in flex items-center justify-center gap-2" style={{ animationDelay: '0.2s' }}>
-                      <span className="text-lg">✓</span>
-                      <span>No monthly fees</span>
-                    </li>
-                    <li className="animate-slide-in flex items-center justify-center gap-2" style={{ animationDelay: '0.3s' }}>
-                      <span className="text-lg">✓</span>
-                      <span>No hidden charges</span>
-                    </li>
-                    <li className="animate-slide-in flex items-center justify-center gap-2" style={{ animationDelay: '0.4s' }}>
-                      <span className="text-lg">✓</span>
-                      <span>Lifetime access with a single payment</span>
-                    </li>
-                  </ul>
-                </div>
-
-                {/* Features */}
-                <div>
-                  <h3 className="text-xl font-bold mb-4">🚀 What You Get with Prediction Access</h3>
-                  <div className="space-y-4">
-                    <div className="flex gap-3 animate-slide-in-left" style={{ animationDelay: '0.5s' }}>
-                      <span className="text-lg">✅</span>
-                      <div>
-                        <p className="font-bold">Strong Fundamental Stocks Only</p>
-                        <p className="text-sm text-muted-foreground">We show only fundamentally strong, high-quality companies with solid business strength.</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-3 animate-slide-in-left" style={{ animationDelay: '0.6s' }}>
-                      <span className="text-lg">✅</span>
-                      <div>
-                        <p className="font-bold">High-Potential & Profitable Focus</p>
-                        <p className="text-sm text-muted-foreground">Predictions highlight stocks with strong momentum and real profit potential. Weak or negative stocks are automatically removed.</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-3 animate-slide-in-left" style={{ animationDelay: '0.7s' }}>
-                      <span className="text-lg">✅</span>
-                      <div>
-                        <p className="font-bold">Live Market-Driven Updates</p>
-                        <p className="text-sm text-muted-foreground">Stock predictions update dynamically according to current market conditions.</p>
-                      </div>
-                    </div>
-
-                    {/* Special Stock Growth Offer */}
-                    <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-500/50 rounded-lg p-4 animate-slide-in-left" style={{ animationDelay: '0.75s' }}>
-                      <div className="flex gap-3">
-                        <span className="text-2xl">📈</span>
-                        <div className="flex-1">
-                          <p className="font-bold text-lg text-green-400">You Get 5% to 20% Stock Growth</p>
-                          <p className="text-sm text-muted-foreground mt-1">Our carefully curated predictions focus on stocks with real potential for 5-20% growth based on fundamental strength and market momentum.</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-3 animate-slide-in-left" style={{ animationDelay: '0.8s' }}>
-                      <span className="text-lg">✅</span>
-                      <div>
-                        <p className="font-bold">Covers Top NSE & BSE Stocks</p>
-                        <p className="text-sm text-muted-foreground">Handpicked stocks from major sectors across NSE and BSE.</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Buttons */}
-                <div className="flex gap-3 sticky bottom-0 bg-card border-t border-border p-4 sm:p-6 -m-4 sm:-m-6 mt-6">
-                  <button
-                    onClick={() => setShowModal(false)}
-                    className="flex-1 px-4 py-3 rounded-lg border border-border hover:bg-muted/50 transition font-semibold text-base"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => handleConfirmPayment(() => setShowModal(false), setShowSuccess, markPredictionsAsPaid)}
-                    className="flex-1 px-4 py-3 rounded-lg bg-primary hover:bg-primary/90 text-white font-bold transition shadow-lg hover:shadow-xl hover:scale-105 text-base"
-                  >
-                    OK — Go to Payment
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Success Modal */}
         {showSuccess && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
-            <div className="bg-card border-2 border-green-500/60 rounded-2xl max-w-xl w-full shadow-2xl animate-in zoom-in-95">
-              <div className="p-8 sm:p-10 text-center space-y-6">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-3 animate-in fade-in">
+            <div className="bg-card border-2 border-green-500/60 rounded-lg max-w-xs w-full shadow-xl animate-in zoom-in-95">
+              <div className="p-3 sm:p-4 text-center space-y-2 sm:space-y-2.5">
                 {/* Success Icon */}
                 <div className="flex justify-center">
-                  <div className="h-20 w-20 rounded-full bg-green-500/20 border-2 border-green-500 flex items-center justify-center animate-bounce">
-                    <Check className="h-10 w-10 text-green-500" />
+                  <div className="h-12 w-12 rounded-full bg-green-500/20 border-2 border-green-500 flex items-center justify-center animate-bounce">
+                    <Check className="h-6 w-6 text-green-500" />
                   </div>
                 </div>
 
                 {/* Success Message */}
-                <div className="space-y-3 animate-slide-in-up">
-                  <h2 className="text-4xl font-bold text-green-500">🎉 Payment Successful!</h2>
-                  <p className="text-lg text-muted-foreground">Your payment was processed successfully.</p>
+                <div className="space-y-1 animate-slide-in-up">
+                  <h2 className="text-xl sm:text-2xl font-bold text-green-500">🎉 Success!</h2>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Payment processed.</p>
                 </div>
 
                 {/* Success Details */}
-                <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-6 space-y-4 animate-slide-in-up" style={{ animationDelay: '0.2s' }}>
-                  <div className="space-y-2">
-                    <p className="font-bold text-foreground text-lg">🎉 Welcome to the Prediction Page!</p>
-                    <p className="text-muted-foreground leading-relaxed">
-                      You now have lifetime access to all stock prediction services.
-                    </p>
-                    <p className="text-muted-foreground leading-relaxed">
-                      Enjoy high-quality predictions based on strong fundamentals and market strength — forever.
-                    </p>
-                  </div>
+                <div className="bg-green-500/10 border border-green-500/30 rounded-md p-2 sm:p-2.5 space-y-1 animate-slide-in-up" style={{ animationDelay: '0.2s' }}>
+                  <p className="text-[10px] font-bold text-foreground">✅ Lifetime Access</p>
+                  <p className="text-[10px] text-muted-foreground">Enjoy all predictions forever</p>
                 </div>
 
+                {/* Close Button */}
+                <button
+                  onClick={() => setShowSuccess(false)}
+                  className="w-full px-3 py-1.5 rounded-md bg-primary hover:bg-primary/90 text-white font-bold transition text-xs"
+                >
+                  View Predictions
+                </button>
+
                 {/* Loading indicator */}
-                <div className="flex items-center justify-center gap-2 text-primary">
-                  <div className="h-2 w-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
-                  <div className="h-2 w-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
-                  <div className="h-2 w-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
-                  <span className="text-sm text-muted-foreground ml-2">Redirecting...</span>
+                <div className="flex items-center justify-center gap-0.5 text-primary">
+                  <div className="h-1.5 w-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
+                  <div className="h-1.5 w-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                  <div className="h-1.5 w-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
+                  <span className="text-[10px] text-muted-foreground ml-1">Redirecting...</span>
                 </div>
               </div>
             </div>

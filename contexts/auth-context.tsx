@@ -91,36 +91,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   
 
   const logout = () => {
+    console.log('🔐 [LOGOUT] Starting immediate logout...')
+    
+    // IMMEDIATE: Clear local state first (this updates UI instantly)
+    setUser(null)
+    console.log('✅ [LOGOUT] User state cleared immediately')
+    
+    // IMMEDIATE: Clear all storage
+    try {
+      if (typeof window !== "undefined") {
+        localStorage.clear()
+        sessionStorage.clear()
+        // Also clear cookies on client-side
+        document.cookie.split(";").forEach((c) => {
+          const eqPos = c.indexOf("=")
+          const name = eqPos > -1 ? c.substr(0, eqPos).trim() : c.trim()
+          document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;`
+        })
+        console.log('✅ [LOGOUT] Storage and cookies cleared immediately')
+      }
+    } catch (err) {
+      console.error('❌ [LOGOUT] Storage clear error:', err)
+    }
+    
+    // IMMEDIATE: Redirect to home page FIRST
+    try {
+      if (typeof window !== "undefined") {
+        console.log('🔄 [LOGOUT] Redirecting to home page immediately...')
+        // Use setTimeout to ensure state is updated before redirect
+        setTimeout(() => {
+          window.location.href = "/"
+        }, 50)
+      }
+    } catch (err) {
+      console.error('❌ [LOGOUT] Redirect error:', err)
+    }
+    
+    // BACKGROUND: Call logout API (fire and forget - don't wait for it)
     ;(async () => {
       try {
-        console.log('🔐 Logging out user...')
-        const response = await fetch("/api/auth/logout", { method: "POST" })
-        console.log('✅ Logout API response:', response.status)
+        console.log('🔐 [LOGOUT] Calling logout API in background...')
+        await fetch("/api/auth/logout", { method: "POST" })
+        console.log('✅ [LOGOUT] API logout completed in background')
       } catch (err) {
-        console.error('❌ Logout API error:', err)
-      }
-      
-      // Clear local state
-      setUser(null)
-      console.log('✅ User state cleared')
-      
-      // Clear local storage
-      try {
-        if (typeof window !== "undefined") {
-          localStorage.clear()
-          sessionStorage.clear()
-          console.log('✅ Storage cleared')
-        }
-      } catch {}
-      
-      // Force full page redirect to home
-      try {
-        if (typeof window !== "undefined") {
-          console.log('🔄 Redirecting to home page...')
-          window.location.href = "/"
-        }
-      } catch (err) {
-        console.error('❌ Redirect error:', err)
+        console.error('❌ [LOGOUT] API logout error (background):', err)
       }
     })()
   }
@@ -161,13 +175,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginWithOTP = async (email: string, otp: string): Promise<{ success: boolean; error?: string; isNewUser?: boolean }> => {
     try {
-      if (!email || !otp) return { success: false, error: "Email and OTP are required" }
+      const emailNormalized = email.toLowerCase().trim()
+      const otpNormalized = otp.toString().trim()
+      
+      if (!emailNormalized || !otpNormalized) return { success: false, error: "Email and OTP are required" }
+      
+      console.log("[AUTH] Logging in with OTP - email:", emailNormalized, "otp length:", otpNormalized.length)
       
       // Verify OTP
       const response = await fetch("/api/auth/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.toLowerCase(), otp }),
+        body: JSON.stringify({ email: emailNormalized, otp: otpNormalized }),
       })
 
       const data = await response.json()
@@ -187,10 +206,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Server sets HttpOnly cookie. Just set user state from response.
       setUser(userData)
+      console.log("[AUTH] ✅ Login successful for:", emailNormalized)
 
       return { success: true, isNewUser: data.isNewUser }
     } catch (err) {
-      console.error("[v0] OTP login error:", err)
+      console.error("[AUTH] ❌ OTP login error:", err)
       return { success: false, error: err instanceof Error ? err.message : "OTP login failed" }
     }
   }
