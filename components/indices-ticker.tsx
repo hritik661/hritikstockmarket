@@ -113,7 +113,7 @@ export function IndicesTicker() {
   }
 
   return (
-    <div className="border-b border-border bg-card/50 py-2 overflow-hidden">
+    <div className="border-b border-border bg-card/50 py-2 overflow-hidden indices-ticker-mobile">
       <div className="container mx-auto px-4">
         <div className="flex animate-scroll-horizontal gap-3 md:gap-4 overflow-x-auto">
           {/* First set of indices */}
@@ -144,7 +144,7 @@ export function IndicesTicker() {
                         </span>
                         <span
                           className={cn(
-                            "flex items-center text-[10px] font-bold px-1 py-0.5 rounded bg-secondary/50",
+                            "ticker-change flex items-center font-bold px-1 py-0.5 rounded bg-secondary/50 text-[10px]",
                             isPositive ? "text-primary" : "text-destructive",
                           )}
                         >
@@ -184,7 +184,7 @@ export function IndicesTicker() {
                         </span>
                         <span
                           className={cn(
-                            "flex items-center text-[10px] font-bold px-1 py-0.5 rounded bg-secondary/50",
+                            "ticker-change flex items-center font-bold px-1 py-0.5 rounded bg-secondary/50 text-[10px]",
                             isPositive ? "text-primary" : "text-destructive",
                           )}
                         >
@@ -240,7 +240,7 @@ export function IndicesTicker() {
                       </span>
                       <span
                         className={cn(
-                          "flex items-center text-[10px] font-bold px-1 py-0.5 rounded bg-secondary/50",
+                          "ticker-change flex items-center font-bold px-1 py-0.5 rounded bg-secondary/50 text-[10px]",
                           isPositive ? "text-primary" : "text-destructive",
                         )}
                       >
@@ -378,7 +378,7 @@ export function IndicesTicker() {
                       </span>
                       <span
                         className={cn(
-                          "flex items-center text-[10px] font-bold px-1 py-0.5 rounded bg-secondary/50",
+                          "ticker-change flex items-center font-bold px-1 py-0.5 rounded bg-secondary/50 text-[10px]",
                           isPositive ? "text-primary" : "text-destructive",
                         )}
                       >

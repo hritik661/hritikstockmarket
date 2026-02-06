@@ -9,6 +9,7 @@ import { Toaster } from "@/components/ui/toaster"
 import StartupRedirect from "@/components/startup-redirect"
 import LoginModal from "@/components/login-modal"
 import Providers from "@/components/providers"
+import "../styles/indices-ticker-mobile.css"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" })

@@ -88,7 +88,6 @@ export default function HomePage() {
               <div className="flex gap-3 md:gap-4">
                 <div className="flex-1">
                   <h2 className="font-bold text-base md:text-lg mb-1 md:mb-2">Welcome to Stocks AI!</h2>
-                  <p className="text-xs md:text-sm text-muted-foreground mb-3 md:mb-4">Trade stocks and options with real market data, AI predictions, and professional tools. Start building your trading skills today!</p>
                   <div className="flex flex-wrap gap-2">
                     <Link href="/predictions" className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary/20 text-primary hover:bg-primary/30 transition-colors">
                       📊 View AI Predictions
@@ -122,7 +121,7 @@ export default function HomePage() {
             <div
               style={{ animationDelay: "0.4s" }}
             >
-              <FiftyTwoWeekView type="near-high" title="52-Week Highs" description="Stocks near their 52-week highs" limit={20} />
+              <FiftyTwoWeekView type="near-high" title="52-Week" description="Stocks near their 52-week highs" limit={20} />
             </div>
           </div>
 
