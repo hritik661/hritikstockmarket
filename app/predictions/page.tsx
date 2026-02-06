@@ -373,41 +373,6 @@ export default function PredictionsPage() {
                   💳 Access to Pay
                 </button>
               </div>
-
-              {/* Info Box */}
-              <div className="mt-8 p-6 bg-blue-500/10 border border-blue-500/30 rounded-lg text-center">
-                <p className="text-sm text-muted-foreground">
-                  💡 <span className="font-semibold">Secure Payment:</span> Payments processed securely by Razorpay. No data stored on our servers.
-                </p>
-              </div>
-
-              {/* QR + alternative payment links (UPI / Razorpay.me) */}
-              <div className="mt-6 text-center">
-                {process.env.NEXT_PUBLIC_RAZORPAY_ME_LINK && (
-                  <div className="mb-4">
-                    <p className="text-sm text-muted-foreground mb-2">Scan to pay (UPI / Razorpay)</p>
-                    <img
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(process.env.NEXT_PUBLIC_RAZORPAY_ME_LINK || '')}`}
-                      alt="Razorpay QR"
-                      className="mx-auto w-48 h-48 object-contain rounded-lg shadow-md"
-                    />
-                  </div>
-                )}
-
-                <p className="text-sm text-muted-foreground mb-2">Or use a direct link:</p>
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-                  {process.env.NEXT_PUBLIC_RAZORPAY_ME_LINK && (
-                    <a href={process.env.NEXT_PUBLIC_RAZORPAY_ME_LINK} target="_blank" rel="noreferrer" className="px-4 py-2 rounded-lg border border-primary/30 hover:bg-primary/5 text-sm font-semibold">
-                      Pay via Razorpay.me
-                    </a>
-                  )}
-                  {process.env.NEXT_PUBLIC_RAZORPAY_TEST_LINK && (
-                    <a href={process.env.NEXT_PUBLIC_RAZORPAY_TEST_LINK} target="_blank" rel="noreferrer" className="px-4 py-2 rounded-lg border border-primary/30 hover:bg-primary/5 text-sm font-semibold">
-                      Open Payment Link
-                    </a>
-                  )}
-                </div>
-              </div>
             </div>
           </div>
         )}
