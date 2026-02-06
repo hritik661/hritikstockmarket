@@ -70,15 +70,15 @@ export default function HomePage() {
             {/* Header Section with animated gradient */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-2 md:gap-3 animate-slide-in-up">
               <div className="space-y-1 md:space-y-1.5">
-                <h1 className="text-xl md:text-xl lg:text-3xl font-black tracking-tighter text-gradient">
+                <h1 className="text-lg md:text-xl lg:text-3xl font-black tracking-tighter text-gradient">
                   Market Dashboard
                 </h1>
-                <p className="text-muted-foreground text-sm md:text-sm font-medium">
+                <p className="text-muted-foreground text-xs md:text-sm font-medium">
                   Managing <span className="text-primary font-bold">₹{user.balance.toLocaleString("en-IN")}</span> • <span className="text-emerald-500">Ready to trade</span>
                 </p>
               </div>
               <div className="flex items-center gap-2 md:gap-2 glass-morphism px-3 md:px-4 py-2 md:py-2.5 rounded-xl animate-scale-bounce">
-                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Market</span>
+                <span className="text-[10px] md:text-xs font-bold text-muted-foreground uppercase tracking-wider">Market</span>
                 <MarketStatus />
               </div>
             </div>
