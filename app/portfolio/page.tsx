@@ -594,12 +594,34 @@ export default function PortfolioPage() {
                           </div>
                         </div>
 
+
+                        {/* Always show entry and current price in mobile view */}
+                        <div className="flex flex-col items-end sm:hidden mr-2">
+                          <div className="flex gap-2">
+                            <div className="text-center">
+                              <p className="text-[10px] text-muted-foreground">Entry</p>
+                              <p className="font-mono text-xs">{formatCurrency(holding.avgPrice)}</p>
+                            </div>
+                            <div className="text-center">
+                              <p className="text-[10px] text-muted-foreground">Current</p>
+                              <p className="font-mono text-xs">
+                                {isOption 
+                                  ? formatCurrency(typeof getLastPrices()[holding.symbol.replace('-OPT', '')] === 'number' && !isNaN(getLastPrices()[holding.symbol.replace('-OPT', '')]) 
+                                      ? getLastPrices()[holding.symbol.replace('-OPT', '')] 
+                                      : holding.avgPrice)
+                                  : formatCurrency(holding.quote?.regularMarketPrice || holding.avgPrice)
+                                }
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Desktop/tablet: show as before */}
                         <div className="text-center hidden sm:block">
                           <p className="text-xs md:text-sm text-muted-foreground">Entry Price</p>
                           <p className="font-mono text-xs md:text-sm">{formatCurrency(holding.avgPrice)}</p>
                         </div>
-
-                        <div className="text-center">
+                        <div className="text-center hidden sm:block">
                           <p className="text-xs md:text-sm text-muted-foreground">Current Price</p>
                           <p className="font-mono text-xs md:text-sm">
                             {isOption 

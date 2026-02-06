@@ -195,9 +195,7 @@ export default function PredictionsPage() {
                 <div className="flex-1">
                   <PredictionsList />
                 </div>
-                <div className="w-full lg:w-80 space-y-4 md:space-y-8">
-                  {showNews && <NewsSection limit={8} />}
-                </div>
+                {/* NewsSection removed as per user request */}
               </div>
             )}
           </>
